@@ -27,6 +27,7 @@ import com.a1c.app.data.LogData
 import com.a1c.app.ui.theme.Accent
 import com.a1c.app.ui.theme.OnSurfaceDim
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -34,7 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 
 private val timeFormat = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm").withZone(ZoneId.systemDefault())
-private val dayFormat = DateTimeFormatter.ofPattern("d MMM").withZone(ZoneId.systemDefault())
+private val dayLabel = DateTimeFormatter.ofPattern("d MMM")
 
 @Composable
 fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit) -> Unit) {
@@ -243,8 +244,8 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>) {
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(dayFormat.format(Instant.parse(recent.first().date + "T00:00:00Z")), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                    Text(dayFormat.format(Instant.parse(recent.last().date + "T00:00:00Z")), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text(LocalDate.parse(recent.first().date).format(dayLabel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text(LocalDate.parse(recent.last().date).format(dayLabel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
             }
         }
