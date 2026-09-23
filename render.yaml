@@ -24,7 +24,9 @@ services:
       - key: RAILS_MASTER_KEY
         sync: false
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: a1c-db
+          property: connectionString
       - key: RAILS_LOG_TO_STDOUT
         value: "true"
       - key: WEB_CONCURRENCY
@@ -32,5 +34,6 @@ services:
 
 databases:
   - name: a1c-db
-    databaseName: a1c
+    databaseName: a1c_production
     plan: basic-256mb
+    region: oregon
