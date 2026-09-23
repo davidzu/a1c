@@ -1,0 +1,19 @@
+# Backend
+backend/log/*
+backend/tmp/*
+backend/storage/*
+backend/vendor/*
+backend/.env
+backend/config/master.key
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+
+# Misc
+.DS_Store
+*.swp

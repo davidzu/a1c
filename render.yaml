@@ -1,0 +1,36 @@
+# A1C demo API
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Render dashboard (or Blueprint):
+#   Root Directory: backend
+#   Build command:  ./bin/render-build.sh
+#   Start command:  ./bin/render-start.sh
+#   Env: RAILS_ENV=production, RAILS_MASTER_KEY, DATABASE_URL
+
+services:
+  - type: web
+    name: a1c-api
+    runtime: ruby
+    plan: starter
+    rootDir: backend
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /up
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "./bin/render-start.sh"
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: WEB_CONCURRENCY
+        value: "1"
+
+databases:
+  - name: a1c-db
+    databaseName: a1c
+    plan: basic-256mb
