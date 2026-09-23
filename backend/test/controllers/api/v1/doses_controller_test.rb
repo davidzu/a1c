@@ -64,8 +64,8 @@ module Api
         body = JSON.parse(response.body)
         totals = body["daily_totals"]
         assert_equal 2, totals.size
-        assert_equal({ "date" => "2026-09-22", "total_units" => 15 }, totals.first)
-        assert_equal({ "date" => "2026-09-23", "total_units" => 7 }, totals.last)
+        assert_equal({ "date" => "2026-09-22", "fast_units" => 5, "slow_units" => 10, "total_units" => 15 }, totals.first)
+        assert_equal({ "date" => "2026-09-23", "fast_units" => 7, "slow_units" => 0, "total_units" => 7 }, totals.last)
 
         doses = body["doses"]
         assert_equal 3, doses.size

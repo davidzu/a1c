@@ -6,9 +6,23 @@ class Dose < ApplicationRecord
   scope :recent, -> { order(created_at: :desc).limit(50) }
 
   def self.daily_totals
-    group("date(created_at)")
+    fast = Dose.kinds.fetch("fast")
+    slow = Dose.kinds.fetch("slow")
+    Dose
+      .group(Arel.sql("date(created_at)"))
       .order(Arel.sql("date(created_at)"))
-      .sum(:units)
-      .map { |date, total| { date: date.to_s, total_units: total } }
+      .pluck(
+        Arel.sql("date(created_at)"),
+        Arel.sql("sum(units) filter (where kind = #{fast})"),
+        Arel.sql("sum(units) filter (where kind = #{slow})")
+      )
+      .map do |date, fast_total, slow_total|
+        {
+          date: date.to_s,
+          fast_units: fast_total.to_i,
+          slow_units: slow_total.to_i,
+          total_units: fast_total.to_i + slow_total.to_i
+        }
+      end
   end
 end
