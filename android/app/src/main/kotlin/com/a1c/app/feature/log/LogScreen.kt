@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.a1c.app.data.LogData
 import com.a1c.app.ui.theme.Accent
+import com.a1c.app.ui.theme.AccentDim
 import com.a1c.app.ui.theme.OnSurfaceDim
 import java.time.Instant
 import java.time.LocalDate
@@ -149,7 +150,11 @@ fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(12.dp))
-        DailyTotalsGraph(data.dailyTotals)
+        DailyTotalsGraph(
+            totals = data.dailyTotals,
+            fastName = data.settings?.fastName ?: "Fast",
+            slowName = data.settings?.slowName ?: "Slow",
+        )
         Spacer(Modifier.height(24.dp))
 
         Text(
@@ -208,7 +213,7 @@ private fun ChoiceChip(selected: Boolean, label: String, modifier: Modifier = Mo
 }
 
 @Composable
-private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>) {
+private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, fastName: String, slowName: String) {
     val recent = totals.takeLast(14)
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -222,32 +227,68 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                val max = recent.maxOf { it.totalUnits }.coerceAtLeast(1)
+                val max = maxOf(recent.maxOf { it.fastUnits }, recent.maxOf { it.slowUnits }).coerceAtLeast(1)
                 val textMeasurer = rememberTextMeasurer()
-                Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
-                    val barSpace = size.width / recent.size
-                    val barWidth = barSpace * 0.55f
-                    recent.forEachIndexed { index, total ->
-                        val barHeight = (total.totalUnits.toFloat() / max) * (size.height - 18.dp.toPx())
-                        drawRoundRect(
-                            color = Accent,
-                            topLeft = Offset(index * barSpace + (barSpace - barWidth) / 2, size.height - barHeight),
-                            size = Size(barWidth, barHeight),
-                            cornerRadius = CornerRadius(6f, 6f),
-                        )
-                        drawText(
-                            textMeasurer = textMeasurer,
-                            text = total.totalUnits.toString(),
-                            topLeft = Offset(index * barSpace + (barSpace - barWidth) / 2 - 8f, size.height - barHeight - 34f),
-                            style = TextStyle(color = OnSurfaceDim, fontSize = 10.sp),
-                        )                    }
+                val slowBarColor = AccentDim.copy(alpha = 0.40f)
+                Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                    val slot = size.width / recent.size
+                    val slowBarWidth = slot * 0.72f
+                    val fastBarWidth = slot * 0.34f
+                    val chartHeight = size.height - 24.dp.toPx()
+                    recent.forEachIndexed { index, day ->
+                        val slowHeight = (day.slowUnits.toFloat() / max) * chartHeight
+                        val slowX = index * slot + (slot - slowBarWidth) / 2
+                        if (day.slowUnits > 0) {
+                            drawRoundRect(
+                                color = slowBarColor,
+                                topLeft = Offset(slowX, size.height - slowHeight),
+                                size = Size(slowBarWidth, slowHeight),
+                                cornerRadius = CornerRadius(7f, 7f),
+                            )
+                        }
+                        val fastHeight = (day.fastUnits.toFloat() / max) * chartHeight
+                        val fastX = index * slot + (slot - fastBarWidth) / 2
+                        if (day.fastUnits > 0) {
+                            drawRoundRect(
+                                color = Accent,
+                                topLeft = Offset(fastX, size.height - fastHeight),
+                                size = Size(fastBarWidth, fastHeight),
+                                cornerRadius = CornerRadius(7f, 7f),
+                            )
+                            val label = textMeasurer.measure(
+                                day.fastUnits.toString(),
+                                style = TextStyle(color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                            )
+                            drawText(
+                                textLayoutResult = label,
+                                topLeft = Offset(fastX + fastBarWidth / 2 - label.size.width / 2f, size.height - fastHeight - label.size.height - 4f),
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(LocalDate.parse(recent.first().date).format(dayLabel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     Text(LocalDate.parse(recent.last().date).format(dayLabel), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LegendDot(Accent, "Fast · $fastName")
+                    LegendDot(slowBarColor, "Slow · $slowName")
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, RoundedCornerShape(3.dp)),
+        )
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
     }
 }

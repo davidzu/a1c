@@ -14,6 +14,8 @@ data class DoseDto(
 @Serializable
 data class DailyTotalDto(
     val date: String,
+    @SerialName("fast_units") val fastUnits: Int = 0,
+    @SerialName("slow_units") val slowUnits: Int = 0,
     @SerialName("total_units") val totalUnits: Int,
 )
 
