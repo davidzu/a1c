@@ -25,7 +25,6 @@ android {
         }
         create("demo") {
             dimension = "env"
-            // Replace with the Render origin when slice 1 deploys.
             buildConfigField("String", "BASE_URL", "\"https://a1c-api.onrender.com/api/v1/\"")
         }
     }

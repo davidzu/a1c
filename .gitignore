@@ -17,3 +17,4 @@ android/local.properties
 # Misc
 .DS_Store
 *.swp
+.env.local
