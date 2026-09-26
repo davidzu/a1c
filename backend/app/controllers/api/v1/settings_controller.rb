@@ -17,7 +17,7 @@ module Api
       private
 
       def settings_params
-        params.permit(:fast_name, :slow_name, :weight_kg, :last_a1c)
+        params.permit(:fast_name, :slow_name, :weight_kg, :last_a1c, :timezone)
       end
 
       def settings_payload(settings)
@@ -25,7 +25,8 @@ module Api
           fast_name: settings.fast_name,
           slow_name: settings.slow_name,
           weight_kg: settings.weight_kg&.to_f,
-          last_a1c: settings.last_a1c&.to_f
+          last_a1c: settings.last_a1c&.to_f,
+          timezone: settings.timezone
         }
       end
     end

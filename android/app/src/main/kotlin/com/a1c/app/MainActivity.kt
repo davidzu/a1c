@@ -100,7 +100,11 @@ fun A1CApp(container: AppContainer) {
             modifier = Modifier.padding(padding),
         ) {
             composable(Destination.Log.route) {
-                LogScreen(data = data, onLogDose = logViewModel::logDose)
+                LogScreen(
+                    data = data,
+                    onLogDose = logViewModel::logDose,
+                    onRefresh = logViewModel::refresh,
+                )
             }
             composable(Destination.Insulins.route) {
                 InsulinsScreen(data = data, onSave = configViewModel::save)

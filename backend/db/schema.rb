@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_23_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_26_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -43,10 +43,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_000001) do
   end
 
   create_table "doses", force: :cascade do |t|
+    t.string "client_id"
     t.datetime "created_at", null: false
     t.integer "kind", null: false
+    t.datetime "taken_at"
     t.integer "units", null: false
     t.datetime "updated_at", null: false
+    t.index ["client_id"], name: "index_doses_on_client_id", unique: true
     t.index ["created_at"], name: "index_doses_on_created_at"
   end
 
@@ -113,6 +116,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_23_000001) do
     t.string "fast_name", default: "Fast", null: false
     t.decimal "last_a1c", precision: 3, scale: 1
     t.string "slow_name", default: "Slow", null: false
+    t.string "timezone", default: "America/Monterrey", null: false
     t.datetime "updated_at", null: false
     t.decimal "weight_kg", precision: 5, scale: 2
   end

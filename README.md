@@ -15,10 +15,10 @@ docs/      product brief, IA, data model, ADR-001, spec
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/v1/doses` | Recent doses + `daily_totals` (sum of units per day) |
-| POST | `/api/v1/doses` | Log a dose — `{ "units": 6, "kind": "fast" }` |
-| GET | `/api/v1/settings` | Insulin names, weight, last A1C |
-| PATCH | `/api/v1/settings` | Update any subset of those four fields |
+| GET | `/api/v1/doses` | Recent doses + `daily_totals` (per local day in `settings.timezone`) |
+| POST | `/api/v1/doses` | Log a dose — `{ "units": 6, "kind": "fast", "taken_at": "...", "client_id": "uuid" }` (last two optional, for offline sync) |
+| GET | `/api/v1/settings` | Insulin names, weight, last A1C, timezone |
+| PATCH | `/api/v1/settings` | Update any subset of those five fields |
 
 ## Run locally
 

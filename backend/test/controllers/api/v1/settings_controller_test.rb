@@ -63,6 +63,29 @@ module Api
         patch api_v1_settings_url, params: { last_a1c: "-1" }, as: :json
         assert_response :unprocessable_content
       end
+
+      test "timezone defaults to Monterrey" do
+        get api_v1_settings_url, as: :json
+        body = JSON.parse(response.body).fetch("settings")
+        assert_equal "America/Monterrey", body["timezone"]
+      end
+
+      test "updates timezone with a valid IANA zone" do
+        patch api_v1_settings_url, params: { timezone: "America/New_York" }, as: :json
+        assert_response :ok
+
+        body = JSON.parse(response.body).fetch("settings")
+        assert_equal "America/New_York", body["timezone"]
+      end
+
+      test "rejects unknown timezone" do
+        patch api_v1_settings_url, params: { timezone: "Mars/Olympus" }, as: :json
+        assert_response :unprocessable_content
+
+        body = JSON.parse(response.body)
+        assert_equal "validation_failed", body.dig("error", "code")
+        assert_equal "timezone", body.dig("error", "field")
+      end
     end
   end
 end

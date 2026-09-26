@@ -71,6 +71,65 @@ module Api
         assert_equal 3, doses.size
         assert_equal 7, doses.last["units"]
       end
+
+      test "daily totals bucket by local day, not UTC (UTC-6 regression)" do
+        # 21:00 Monterrey = 03:00 UTC next day. Must count as the SAME local
+        # day as a dose logged at noon Monterrey.
+        travel_to Time.zone.parse("2026-09-22 12:00:00 -06:00") do
+          Dose.create!(units: 4, kind: :fast)
+        end
+        travel_to Time.zone.parse("2026-09-22 21:00:00 -06:00") do
+          Dose.create!(units: 3, kind: :slow)
+        end
+
+        get api_v1_doses_url, as: :json
+        assert_response :ok
+
+        totals = JSON.parse(response.body)["daily_totals"]
+        assert_equal 1, totals.size, "evening Monterrey dose must not spill into the next UTC day"
+        assert_equal({ "date" => "2026-09-22", "fast_units" => 4, "slow_units" => 3, "total_units" => 7 }, totals.first)
+      end
+
+      test "accepts taken_at and client_id, echoes them back" do
+        post api_v1_doses_url,
+             params: { units: 6, kind: "fast", taken_at: "2026-09-20T19:30:00-06:00", client_id: "abc-123" },
+             as: :json
+        assert_response :created
+
+        body = JSON.parse(response.body).fetch("dose")
+        assert_equal "abc-123", body["client_id"]
+        # Same instant as "2026-09-20T19:30:00-06:00", serialized in UTC.
+        assert_equal "2026-09-21T01:30:00Z", body["taken_at"]
+        assert_equal 1, Dose.count
+      end
+
+      test "same client_id twice returns the existing dose without duplicating" do
+        post api_v1_doses_url, params: { units: 6, kind: "fast", client_id: "abc-123" }, as: :json
+        assert_response :created
+
+        post api_v1_doses_url, params: { units: 9, kind: "slow", client_id: "abc-123" }, as: :json
+        assert_response :ok
+
+        body = JSON.parse(response.body).fetch("dose")
+        assert_equal 6, body["units"], "must return the original dose, not the retry payload"
+        assert_equal "fast", body["kind"]
+        assert_equal 1, Dose.count
+      end
+
+      test "daily totals use taken_at when present" do
+        # Logged today (server time) but injected yesterday evening, local.
+        Dose.create!(units: 5, kind: :fast, taken_at: Time.zone.parse("2026-09-21 20:00:00 -06:00"))
+
+        get api_v1_doses_url, as: :json
+        totals = JSON.parse(response.body)["daily_totals"]
+        assert_equal({ "date" => "2026-09-21", "fast_units" => 5, "slow_units" => 0, "total_units" => 5 }, totals.first)
+      end
+
+      test "taken_at must be a valid timestamp" do
+        post api_v1_doses_url, params: { units: 6, kind: "fast", taken_at: "not-a-date" }, as: :json
+        assert_response :unprocessable_content
+        assert_equal 0, Dose.count
+      end
     end
   end
 end

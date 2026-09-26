@@ -21,6 +21,8 @@ class ConfigViewModel(private val repository: A1CRepository) : ViewModel() {
         viewModelScope.launch {
             when (val result = repository.saveSettings(settings)) {
                 is DoseLogResult.Success -> onDone(true, null)
+                // Settings saves are online-only; offline means it didn't save.
+                is DoseLogResult.Offline -> onDone(false, "No connection — try again when online")
                 is DoseLogResult.Failure -> onDone(false, result.message)
             }
         }

@@ -23,10 +23,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import com.a1c.app.data.DoseLogResult
 import com.a1c.app.data.LogData
 import com.a1c.app.ui.theme.Accent
 import com.a1c.app.ui.theme.AccentDim
 import com.a1c.app.ui.theme.OnSurfaceDim
+import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -39,16 +43,25 @@ private val timeFormat = DateTimeFormatter.ofPattern("EEE d MMM · HH:mm").withZ
 private val dayLabel = DateTimeFormatter.ofPattern("d MMM")
 
 @Composable
-fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit) -> Unit) {
+fun LogScreen(
+    data: LogData,
+    onLogDose: (Int, String, (DoseLogResult) -> Unit) -> Unit,
+    onRefresh: () -> Unit,
+) {
     var unitsText by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var messageIsError by remember { mutableStateOf(false) }
     var now by remember { mutableStateOf(Instant.now()) }
+    val haptic = LocalHapticFeedback.current
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) now = Instant.now()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                now = Instant.now()
+                onRefresh()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -56,6 +69,14 @@ fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit
 
     val units = unitsText.toIntOrNull()
     val canSave = units != null && units > 0 && kind != null
+
+    // Success feedback clears itself; errors stay until the next action.
+    LaunchedEffect(message) {
+        if (message != null && !messageIsError) {
+            delay(2500)
+            message = null
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -114,13 +135,26 @@ fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit
                 val selectedKind = kind
                 val unitsValue = units
                 if (selectedKind != null && unitsValue != null && unitsValue > 0) {
-                    onLogDose(unitsValue, selectedKind) { ok, err ->
-                        message = if (ok) {
-                            unitsText = ""
-                            kind = null
-                            "Saved $unitsValue u $selectedKind"
-                        } else {
-                            err ?: "Could not save"
+                    // Instant feedback: clear the form right away (the dose is
+                    // persisted locally by the repository before any network
+                    // round-trip), then confirm via the callback.
+                    unitsText = ""
+                    kind = null
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onLogDose(unitsValue, selectedKind) { result ->
+                        when (result) {
+                            is DoseLogResult.Success -> {
+                                messageIsError = false
+                                message = "✓ Saved $unitsValue u $selectedKind"
+                            }
+                            is DoseLogResult.Offline -> {
+                                messageIsError = false
+                                message = "✓ Saved offline — will sync when online"
+                            }
+                            is DoseLogResult.Failure -> {
+                                messageIsError = true
+                                message = result.message
+                            }
                         }
                     }
                 }
@@ -137,10 +171,26 @@ fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit
         message?.let {
             Text(
                 text = it,
-                color = if (it.startsWith("Saved")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                color = if (messageIsError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (messageIsError) FontWeight.Normal else FontWeight.SemiBold,
                 modifier = Modifier.padding(top = 10.dp),
             )
+        }
+
+        if (data.pendingCount > 0) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.padding(top = 10.dp),
+            ) {
+                Text(
+                    text = "⏳ ${data.pendingCount} pending sync",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
         }
 
         Spacer(Modifier.height(28.dp))
@@ -183,7 +233,7 @@ fun LogScreen(data: LogData, onLogDose: (Int, String, (Boolean, String?) -> Unit
                     )
                     Text("${dose.units} u", color = MaterialTheme.colorScheme.onBackground)
                     Text(
-                        timeFormat.format(Instant.parse(dose.createdAt)),
+                        text = timeFormat.format(Instant.parse(dose.createdAt)) + if (dose.id < 0) " · pending" else "",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                     )

@@ -16,12 +16,14 @@ class LogViewModel(private val repository: A1CRepository) : ViewModel() {
         viewModelScope.launch { runCatching { repository.refresh() } }
     }
 
-    fun logDose(units: Int, kind: String, onDone: (Boolean, String?) -> Unit) {
+    fun logDose(units: Int, kind: String, onDone: (DoseLogResult) -> Unit) {
         viewModelScope.launch {
-            when (val result = repository.logDose(units, kind)) {
-                is DoseLogResult.Success -> onDone(true, null)
-                is DoseLogResult.Failure -> onDone(false, result.message)
-            }
+            onDone(repository.logDose(units, kind))
         }
+    }
+
+    /** Called on resume: re-sync the outbox and reload from the server. */
+    fun refresh() {
+        viewModelScope.launch { runCatching { repository.refresh() } }
     }
 }

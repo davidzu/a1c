@@ -9,6 +9,8 @@ data class DoseDto(
     val kind: String,
     val units: Int,
     @SerialName("created_at") val createdAt: String,
+    @SerialName("taken_at") val takenAt: String? = null,
+    @SerialName("client_id") val clientId: String? = null,
 )
 
 @Serializable
@@ -29,6 +31,8 @@ data class DosesIndexDto(
 data class NewDoseDto(
     val units: Int,
     val kind: String,
+    @SerialName("taken_at") val takenAt: String? = null,
+    @SerialName("client_id") val clientId: String? = null,
 )
 
 @Serializable
@@ -40,8 +44,9 @@ data class DoseResponseDto(
 data class SettingsDto(
     @SerialName("fast_name") val fastName: String,
     @SerialName("slow_name") val slowName: String,
-    @SerialName("weight_kg") val weightKg: Double?,
-    @SerialName("last_a1c") val lastA1c: Double?,
+    @SerialName("weight_kg") val weightKg: Double? = null,
+    @SerialName("last_a1c") val lastA1c: Double? = null,
+    val timezone: String? = null,
 )
 
 @Serializable

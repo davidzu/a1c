@@ -8,6 +8,6 @@ class A1CApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(BuildConfig.BASE_URL)
+        container = AppContainer(BuildConfig.BASE_URL, applicationContext)
     }
 }

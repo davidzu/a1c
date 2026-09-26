@@ -24,8 +24,12 @@ Locked for v1:
   renders state and owns UI only.
 - **No auth.** Single user. No users/sessions tables, no tokens.
 - REST JSON under `/api/v1`. No WebSockets, no FCM.
-- No Room on Android. Repository talks to the API.
+- No Room on Android. Repository talks to the API; a small DataStore (JSON)
+  outbox holds doses pending sync — that is the only local persistence.
 - Data model is `doses` + one `settings` row. Nothing else.
+- Day bucketing for the graph is local time in `settings.timezone`
+  (default `America/Monterrey`), never UTC. Offline doses carry `taken_at`
+  (real injection time) and `client_id` (idempotency UUID).
 - Dark theme only: black/grey + purple-pink accent.
 - Deploy the API to Render. Each finished slice is a phone-visible delivery.
 
