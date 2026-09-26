@@ -85,3 +85,7 @@ doses a day this is instant on Postgres; no counter cache, no rollup table.
 - No `notes`, no `device` metadata (client_id is an idempotency key, not
   telemetry).
 - No deletion/audit trail. Doses are append-only in v1.
+- Legacy tables inherited from the communities schema (users, sessions,
+  missions, tries, groups, memberships, specialities, evidences,
+  invite_codes, active_storage) were dropped by migration
+  `20260926000001` — this app only ever owns `doses` + `settings`.
