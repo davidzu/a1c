@@ -27,7 +27,7 @@ proven on this machine and on Render.
 **Monorepo**
 
 ```text
-A1C/
+A1See/
   backend/     Rails 8 API-only
   android/     Kotlin, Jetpack Compose, single activity
   docs/
