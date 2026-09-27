@@ -20,6 +20,10 @@ opening the app and having a dose saved.
 v1 is the contract. `docs/ADR-001-architecture.md` wins. The numbered build
 list is `docs/spec.md`.
 
+**v2 started**: glucose readings follow `docs/ADR-002-glucose.md`
+(`glucose_readings` table + Nightscout-format ingest via xDrip+). All other
+v1 rules below still hold.
+
 Locked for v1:
 
 - Rails API owns all rules and persistence. Native Android (Kotlin, Compose)

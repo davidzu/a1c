@@ -1,4 +1,4 @@
-# A1C — data model
+# A1See — data model
 
 As simple as possible. Three tables.
 
@@ -79,6 +79,19 @@ doses a day this is instant on Postgres; no counter cache, no rollup table.
 - While offline, pending doses are merged into the list and daily totals on
   the client for display only; the server stays the source of truth.
 
+## Glucose readings (v2, per docs/ADR-002-glucose.md)
+
+`glucose_readings` — one row per CGM reading, written by xDrip+ through
+`POST /api/v1/entries` (Nightscout format):
+
+- `sgv` integer, mg/dL (Nightscout standard). The app displays mmol/L (÷18).
+- `time` datetime, **unique index** — the dedupe key that makes ingest
+  idempotent. Stored UTC.
+- `direction` string, nullable — Nightscout trend name (Flat, FortyFiveUp…).
+- `device` string, nullable — source identifier from the uploader.
+
+Append-only like doses. No per-user scoping (single user).
+
 ## What is deliberately absent
 
 - No `users`, `sessions`, tokens. No auth by contract.
@@ -88,4 +101,5 @@ doses a day this is instant on Postgres; no counter cache, no rollup table.
 - Legacy tables inherited from the communities schema (users, sessions,
   missions, tries, groups, memberships, specialities, evidences,
   invite_codes, active_storage) were dropped by migration
-  `20260926000001` — this app only ever owns `doses` + `settings`.
+  `20260926000001` — this app only ever owns `doses`, `settings`, and
+  (since v2) `glucose_readings`.

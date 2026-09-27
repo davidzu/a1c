@@ -23,6 +23,14 @@ because it is only reachable by Sonic's phone (keep the Render URL private).
    slow insulin (e.g. "Lispro", "Glargine"). These names label the app.
 4. **Generals** — current weight and last A1C, decimals, updated now and then.
 
+## What it also does (v2 — glucose, per docs/ADR-002-glucose.md)
+
+5. **Glucose context** — the Log screen shows the current glucose reading
+   (mmol/L, with trend arrow) and a 24-hour glucose curve with the 3.9–10
+   target band, so every dose can be seen against the glucose that prompted
+   it. Readings come from the CGM via xDrip+ (see ADR-002); A1See never talks
+   to the sensor.
+
 ## What it does not do (v1)
 
 - No login, no accounts, no password.

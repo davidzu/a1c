@@ -4,6 +4,7 @@ import com.a1c.app.data.api.A1CApi
 import com.a1c.app.data.api.ApiErrors
 import com.a1c.app.data.api.DailyTotalDto
 import com.a1c.app.data.api.DoseDto
+import com.a1c.app.data.api.GlucoseReadingDto
 import com.a1c.app.data.api.NewDoseDto
 import com.a1c.app.data.api.SettingsDto
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -105,6 +106,11 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
             } catch (_: Exception) {
                 null
             }
+            val glucose = try {
+                api.glucose(GLUCOSE_HOURS).glucose
+            } catch (_: Exception) {
+                _log.value.glucose
+            }
             val pending = outbox.snapshot()
             _log.update {
                 doses.let { fetched ->
@@ -114,6 +120,7 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
                         settings = settings ?: it.settings,
                         pendingCount = pending.size,
                         loadError = null,
+                        glucose = glucose,
                     ).mergedWith(pending)
                 }
             }
@@ -131,6 +138,10 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
             }
         }
     }
+
+    companion object {
+        const val GLUCOSE_HOURS = 24
+    }
 }
 
 data class LogData(
@@ -140,6 +151,8 @@ data class LogData(
     val pendingCount: Int = 0,
     /** Non-null when the last full load failed (API unreachable/server error). */
     val loadError: String? = null,
+    /** CGM readings, ascending by time, last N hours. Empty until synced. */
+    val glucose: List<GlucoseReadingDto> = emptyList(),
 ) {
     /**
      * Merge pending (offline) doses into the display state. Display-only:

@@ -28,6 +28,19 @@ data class DosesIndexDto(
 )
 
 @Serializable
+data class GlucoseReadingDto(
+    val time: String,
+    val sgv: Int,
+    @SerialName("mmol_l") val mmolL: Double? = null,
+    val direction: String? = null,
+)
+
+@Serializable
+data class GlucoseResponseDto(
+    val glucose: List<GlucoseReadingDto>,
+)
+
+@Serializable
 data class NewDoseDto(
     val units: Int,
     val kind: String,

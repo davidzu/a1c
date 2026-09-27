@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_26_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_27_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -23,6 +23,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_26_000001) do
     t.datetime "updated_at", null: false
     t.index ["client_id"], name: "index_doses_on_client_id", unique: true
     t.index ["created_at"], name: "index_doses_on_created_at"
+  end
+
+  create_table "glucose_readings", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "device"
+    t.string "direction"
+    t.integer "sgv", null: false
+    t.datetime "time", null: false
+    t.datetime "updated_at", null: false
+    t.index ["time"], name: "index_glucose_readings_on_time", unique: true
   end
 
   create_table "settings", force: :cascade do |t|

@@ -5,6 +5,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       resources :doses, only: [ :index, :create ]
       resource :settings, only: [ :show, :update ]
+      resources :entries, only: [ :create ]
+      get "glucose", to: "glucose#index"
     end
   end
 end

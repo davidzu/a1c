@@ -16,4 +16,7 @@ interface A1CApi {
 
     @PATCH("settings")
     suspend fun updateSettings(@Body settings: SettingsDto): SettingsResponseDto
+
+    @GET("glucose")
+    suspend fun glucose(@retrofit2.http.Query("hours") hours: Int = 24): GlucoseResponseDto
 }

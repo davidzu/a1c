@@ -27,6 +27,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.a1c.app.data.DoseLogResult
 import com.a1c.app.data.LogData
+import com.a1c.app.data.api.GlucoseReadingDto
 import com.a1c.app.ui.theme.Accent
 import com.a1c.app.ui.theme.AccentDim
 import com.a1c.app.ui.theme.OnSurfaceDim
@@ -35,6 +36,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -105,6 +109,8 @@ fun LogScreen(
                 )
             }
         }
+
+        CurrentGlucoseLine(glucose = data.glucose)
 
         Spacer(Modifier.height(16.dp))
 
@@ -214,6 +220,10 @@ fun LogScreen(
         }
         Spacer(Modifier.height(24.dp))
 
+        GlucoseCard(glucose = data.glucose)
+
+        Spacer(Modifier.height(24.dp))
+
         Text(
             text = "Recent doses",
             style = MaterialTheme.typography.titleMedium,
@@ -318,6 +328,135 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
                 Text("Retry")
             }
         }
+    }
+}
+
+private val clockLabel = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+
+/** Nightscout direction names → arrows. */
+private fun directionArrow(direction: String?): String = when (direction) {
+    "DoubleUp" -> "↑↑"
+    "SingleUp" -> "↑"
+    "FortyFiveUp" -> "↗"
+    "Flat" -> "→"
+    "FortyFiveDown" -> "↘"
+    "SingleDown" -> "↓"
+    "DoubleDown" -> "↓↓"
+    else -> ""
+}
+
+/** Nightscout direction names → arrows. */
+
+private fun GlucoseReadingDto.ageMinutes(now: Instant): Long =
+    runCatching { (now.toEpochMilli() - Instant.parse(time).toEpochMilli()) / 60_000 }
+        .getOrDefault(-1)
+
+@Composable
+private fun CurrentGlucoseLine(glucose: List<GlucoseReadingDto>, now: Instant = Instant.now()) {
+    val latest = glucose.lastOrNull() ?: return
+    val age = latest.ageMinutes(now)
+    val stale = age < 0 || age > 30
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+        Text(
+            text = "%.1f mmol/L".format(latest.mmolL ?: latest.sgv / 18.0),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
+        )
+        val arrow = directionArrow(latest.direction)
+        if (arrow.isNotEmpty()) {
+            Text(
+                text = " $arrow",
+                style = MaterialTheme.typography.titleLarge,
+                color = Accent,
+            )
+        }
+        Text(
+            text = when {
+                age < 0 -> ""
+                age < 1 -> " · now"
+                age < 60 -> " · ${age} min ago"
+                else -> " · ${age / 60} h ago"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun GlucoseCard(glucose: List<GlucoseReadingDto>) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Glucose · last 24 h",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(12.dp))
+            if (glucose.size < 2) {
+                Text(
+                    "Waiting for glucose data — connect xDrip to the A1See API.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                GlucoseChart(glucose)
+                Spacer(Modifier.height(10.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(clockLabel.format(Instant.parse(glucose.first().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text("target 3.9–10", color = AccentDim, fontSize = 11.sp)
+                    Text(clockLabel.format(Instant.parse(glucose.last().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlucoseChart(readings: List<GlucoseReadingDto>) {
+    val mmol = readings.map { it.mmolL ?: it.sgv / 18.0 }
+    val times = readings.map { Instant.parse(it.time).toEpochMilli() }
+    val t0 = times.first()
+    val t1 = times.last()
+    val span = (t1 - t0).coerceAtLeast(1)
+    val lo = (mmol.min() - 0.5).coerceAtLeast(2.0)
+    val hi = (mmol.max() + 0.5).coerceAtLeast(lo + 2.0)
+    val bandTop = 10.0.coerceAtMost(hi)
+    val bandBottom = 3.9.coerceAtLeast(lo)
+    val lineColor = Accent
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+        val pad = 2.dp.toPx()
+        fun y(v: Double): Float {
+            val frac = ((v - lo) / (hi - lo)).coerceIn(0.0, 1.0)
+            return (size.height - pad) - (frac * (size.height - 2 * pad)).toFloat()
+        }
+
+        // Target band 3.9–10 mmol/L
+        drawRoundRect(
+            color = AccentDim.copy(alpha = 0.15f),
+            topLeft = Offset(0f, y(bandTop)),
+            size = Size(size.width, y(bandBottom) - y(bandTop)),
+            cornerRadius = CornerRadius(6f, 6f),
+        )
+
+        // Curve
+        val path = Path().apply {
+            times.forEachIndexed { i, t ->
+                val x = ((t - t0).toFloat() / span) * size.width
+                if (i == 0) moveTo(x, y(mmol[i])) else lineTo(x, y(mmol[i]))
+            }
+        }
+        drawPath(path, color = lineColor, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+
+        // Latest point
+        val lastX = ((times.last() - t0).toFloat() / span) * size.width
+        drawCircle(color = lineColor, radius = 4.dp.toPx(), center = Offset(lastX, y(mmol.last())))
     }
 }
 

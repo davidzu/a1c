@@ -49,3 +49,19 @@ until N is delivered (see `PIPELINE.md`).
 2. Empty states (no doses yet) and error states (API unreachable) designed,
    not raw text.
 3. Demo flavor points at the Render host; APK installed on the phone.
+
+## Slice 5 — glucose (v2, per docs/ADR-002-glucose.md)
+
+1. `glucose_readings` table (`sgv` mg/dL int, `time` unique, `direction`,
+   `device`) + model.
+2. `POST /api/v1/entries` — Nightscout-format ingest (single or array),
+   sgv/mbg only, idempotent upsert on `time`. Optional shared secret via
+   `GLUCOSE_INGEST_SECRET` (`api-secret` header, raw or SHA-1 hex).
+3. `GET /api/v1/glucose?hours=N` (default 24, max 336) → ascending readings.
+4. Request tests: ingest shapes, dedupe, secret enforcement, glucose index.
+5. Android: current glucose in the Log header (value + direction arrow +
+   age), "Glucose · last 24 h" line chart card with 3.9–10 target band;
+   glucose fetch failures never block dose logging.
+6. xDrip+ on the phone: data source 640g/Eversense (receives SugarJoy+
+   broadcasts), Nightscout REST upload pointed at the Render ingest URL.
+   Delivered when glucose shows in the app from live sensor data.
