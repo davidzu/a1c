@@ -1,4 +1,4 @@
-# A1C — slice delivery pipeline
+# A1See — slice delivery pipeline
 
 Demo-based process. A slice is done when it can be used on the phone against
 the live Render API, not only locally.

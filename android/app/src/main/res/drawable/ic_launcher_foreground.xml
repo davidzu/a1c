@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A1See launcher foreground: a ring around a subtle eye.
+     108x108 adaptive-icon viewport; all art inside the 66dp safe circle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Circumference: the ring -->
+    <path
+        android:pathData="M25.75,54 A28.25,28.25 0 1,0 82.25,54 A28.25,28.25 0 1,0 25.75,54 Z"
+        android:strokeColor="#C465D8"
+        android:strokeWidth="3.5"
+        android:fillColor="#00000000" />
+
+    <!-- Subtle eye: almond outline -->
+    <path
+        android:pathData="M38,54 Q54,42 70,54 Q54,66 38,54 Z"
+        android:strokeColor="#8A4A9E"
+        android:strokeWidth="2.5"
+        android:fillColor="#00000000" />
+
+    <!-- Pupil -->
+    <path
+        android:pathData="M57.5,54 A3.5,3.5 0 1,1 50.5,54 A3.5,3.5 0 1,1 57.5,54 Z"
+        android:fillColor="#C465D8" />
+</vector>

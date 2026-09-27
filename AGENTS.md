@@ -1,12 +1,14 @@
-# A1C — project rules
+# A1See — project rules
 
 This file applies only to this repository.
 
-Visible name: **A1C**. Application id: `com.a1c.app`.
+Visible name: **A1See**. Application id and package stay `com.a1c.app`
+(unchanged for compatibility — renaming them would orphan the installed app
+and its offline outbox).
 
 ## Vision (do not dilute)
 
-A1C is a personal insulin tracker. Log every injection in seconds, several
+A1See is a personal insulin tracker. Log every injection in seconds, several
 times a day, and see the daily total at a glance.
 
 Every feature is judged against that sentence. The log form is the product;

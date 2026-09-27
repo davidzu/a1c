@@ -1,6 +1,6 @@
-# A1C — product brief
+# A1See — product brief
 
-A1C is a personal insulin tracker. It exists so Sonic can log every insulin
+A1See is a personal insulin tracker. It exists so Sonic can log every insulin
 injection in seconds, several times a day, and see how much insulin he uses
 per day over time.
 

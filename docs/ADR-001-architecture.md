@@ -13,7 +13,7 @@ list, library list, and hosting may not change without a new ADR.
 
 ## 1. Context
 
-A1C is a personal insulin tracker: log a dose in seconds, see daily totals.
+A1See is a personal insulin tracker: log a dose in seconds, see daily totals.
 One user, no auth, three screens. The app must open fast and make logging
 fast. The architecture mirrors Mission Possible because that stack is already
 proven on this machine and on Render.

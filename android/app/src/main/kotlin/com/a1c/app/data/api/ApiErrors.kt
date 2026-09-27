@@ -17,13 +17,13 @@ object ApiErrors {
     fun logDose(e: Exception): String = when (e) {
         is HttpException -> humanMessage(e) ?: "Could not save the dose. Try again."
         else -> null
-    } ?: "Can't reach the A1C API — dose saved offline, will sync later."
+    } ?: "Can't reach the A1See API — dose saved offline, will sync later."
 
     /** Human message for a settings-save failure. */
     fun saveSettings(e: Exception): String = when (e) {
         is HttpException -> humanMessage(e) ?: "The server refused the change."
         else -> null
-    } ?: "Can't reach the A1C API. Change not saved."
+    } ?: "Can't reach the A1See API. Change not saved."
 
     private fun humanMessage(e: HttpException): String? {
         if (e.code() !in 400..499) return null

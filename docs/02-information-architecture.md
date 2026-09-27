@@ -1,9 +1,9 @@
-# A1C — information architecture
+# A1See — information architecture
 
 Three screens. The app opens on the main screen, always.
 
 ```
-A1C
+A1See
 ├── Log (main, app opens here)
 │     timestamp · Units field · Fast/Slow choice · Save
 │     + daily totals bar graph below the log form

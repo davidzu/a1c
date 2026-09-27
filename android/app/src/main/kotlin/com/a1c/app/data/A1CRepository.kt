@@ -125,7 +125,7 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
                     loadError = if (e is retrofit2.HttpException) {
                         "Server error (${e.code()})"
                     } else {
-                        "Can't reach the A1C API"
+                        "Can't reach the A1See API"
                     },
                 )
             }

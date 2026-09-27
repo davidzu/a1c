@@ -1,7 +1,7 @@
-# A1C
+# A1See
 
 Personal insulin tracker. Log every injection in seconds and see the daily
-total at a glance.
+total at a glance. Named after the A1C metric it helps you watch.
 
 Monorepo, same shape as Mission Possible:
 
