@@ -69,6 +69,8 @@ fun GeneralsScreen(data: LogData, onSave: (SettingsDto, (Boolean, String?) -> Un
                     message = if (ok) "Saved" else (err ?: "Could not save")
                 }
             },
+            enabled = (weight.isBlank() || weight.toDoubleOrNull() != null) &&
+                (a1c.isBlank() || a1c.toDoubleOrNull() != null),
             modifier = Modifier.fillMaxWidth().height(52.dp),
             shape = RoundedCornerShape(12.dp),
         ) {

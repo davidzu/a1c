@@ -1,6 +1,7 @@
 package com.a1c.app.data
 
 import com.a1c.app.data.api.A1CApi
+import com.a1c.app.data.api.ApiErrors
 import com.a1c.app.data.api.DailyTotalDto
 import com.a1c.app.data.api.DoseDto
 import com.a1c.app.data.api.NewDoseDto
@@ -58,7 +59,7 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
                 // case — drop from the outbox so it can't poison the queue.
                 outbox.removeAll(listOf(clientId))
                 _log.update { it.copy(pendingCount = (it.pendingCount - 1).coerceAtLeast(0)) }
-                DoseLogResult.Failure(e.message ?: "Rejected by server")
+                DoseLogResult.Failure(ApiErrors.logDose(e))
             } else {
                 DoseLogResult.Offline
             }
@@ -70,7 +71,7 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
         _log.update { it.copy(settings = updated) }
         DoseLogResult.Success
     } catch (e: Exception) {
-        DoseLogResult.Failure(e.message ?: "Network error")
+        DoseLogResult.Failure(ApiErrors.saveSettings(e))
     }
 
     /** POST every queued dose (idempotent via client_id), then refresh. */
@@ -97,21 +98,36 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
 
     /** Fetch server state and merge any still-pending doses for display. */
     private suspend fun fetch() {
-        val doses = api.doses()
-        val settings = try {
-            api.settings().settings
-        } catch (_: Exception) {
-            null
-        }
-        val pending = outbox.snapshot()
-        _log.update {
-            doses.let { fetched ->
-                LogData(
-                    doses = fetched.doses,
-                    dailyTotals = fetched.dailyTotals,
-                    settings = settings ?: it.settings,
-                    pendingCount = pending.size,
-                ).mergedWith(pending)
+        try {
+            val doses = api.doses()
+            val settings = try {
+                api.settings().settings
+            } catch (_: Exception) {
+                null
+            }
+            val pending = outbox.snapshot()
+            _log.update {
+                doses.let { fetched ->
+                    LogData(
+                        doses = fetched.doses,
+                        dailyTotals = fetched.dailyTotals,
+                        settings = settings ?: it.settings,
+                        pendingCount = pending.size,
+                        loadError = null,
+                    ).mergedWith(pending)
+                }
+            }
+        } catch (e: Exception) {
+            // Only a total failure to reach the API counts as a load error.
+            // A settings failure alone falls back to the last known names.
+            _log.update {
+                it.copy(
+                    loadError = if (e is retrofit2.HttpException) {
+                        "Server error (${e.code()})"
+                    } else {
+                        "Can't reach the A1C API"
+                    },
+                )
             }
         }
     }
@@ -122,6 +138,8 @@ data class LogData(
     val dailyTotals: List<DailyTotalDto>,
     val settings: SettingsDto?,
     val pendingCount: Int = 0,
+    /** Non-null when the last full load failed (API unreachable/server error). */
+    val loadError: String? = null,
 ) {
     /**
      * Merge pending (offline) doses into the display state. Display-only:

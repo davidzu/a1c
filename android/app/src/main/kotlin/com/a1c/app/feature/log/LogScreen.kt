@@ -200,11 +200,18 @@ fun LogScreen(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(12.dp))
-        DailyTotalsGraph(
-            totals = data.dailyTotals,
-            fastName = data.settings?.fastName ?: "Fast",
-            slowName = data.settings?.slowName ?: "Slow",
-        )
+        if (data.loadError != null && data.dailyTotals.isEmpty() && data.doses.isEmpty() && data.pendingCount == 0) {
+            ErrorState(
+                message = data.loadError,
+                onRetry = onRefresh,
+            )
+        } else {
+            DailyTotalsGraph(
+                totals = data.dailyTotals,
+                fastName = data.settings?.fastName ?: "Fast",
+                slowName = data.settings?.slowName ?: "Slow",
+            )
+        }
         Spacer(Modifier.height(24.dp))
 
         Text(
@@ -213,13 +220,19 @@ fun LogScreen(
             color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(Modifier.height(8.dp))
-        if (data.doses.isEmpty()) {
-            Text(
-                text = "No doses logged yet.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else {
+        when {
+            data.loadError != null && data.doses.isEmpty() && data.pendingCount == 0 ->
+                ErrorState(
+                    message = data.loadError,
+                    onRetry = onRefresh,
+                )
+            data.doses.isEmpty() -> EmptyState(text = "No doses logged yet.")
+            else ->
             data.doses.takeLast(10).reversed().forEach { dose ->
+                val kindLabel = when (dose.kind) {
+                    "fast" -> data.settings?.fastName ?: "Fast"
+                    else -> data.settings?.slowName ?: "Slow"
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -227,7 +240,7 @@ fun LogScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                 ) {
                     Text(
-                        text = dose.kind,
+                        text = kindLabel,
                         color = if (dose.kind == "fast") Accent else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                     )
@@ -241,6 +254,70 @@ fun LogScreen(
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun EmptyState(text: String) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "·",
+                style = MaterialTheme.typography.headlineMedium,
+                color = AccentDim,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorState(message: String, onRetry: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 32.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "⚠",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onRetry,
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text("Retry")
+            }
+        }
     }
 }
 
@@ -272,10 +349,15 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, f
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             if (recent.isEmpty()) {
-                Text(
-                    "Log your first dose to see the graph.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        "Log your first dose to see the graph.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             } else {
                 val max = maxOf(recent.maxOf { it.fastUnits }, recent.maxOf { it.slowUnits }).coerceAtLeast(1)
                 val textMeasurer = rememberTextMeasurer()
