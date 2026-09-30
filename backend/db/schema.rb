@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_29_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_30_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,7 +24,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_000000) do
 
   create_table "activity_sessions", force: :cascade do |t|
     t.integer "avg_hr"
-    t.integer "calories_kcal"
+    t.decimal "calories_kcal", precision: 9, scale: 2
     t.string "client_id", null: false
     t.datetime "created_at", null: false
     t.datetime "ended_at", null: false
@@ -59,8 +59,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_29_000000) do
   end
 
   create_table "nutrition_entries", force: :cascade do |t|
-    t.integer "calories_kcal"
-    t.integer "carbs_g"
+    t.decimal "calories_kcal", precision: 9, scale: 2
+    t.decimal "carbs_g", precision: 9, scale: 2
     t.string "client_id", null: false
     t.datetime "created_at", null: false
     t.string "meal_type"

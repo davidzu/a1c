@@ -2,6 +2,7 @@ package com.a1c.app
 
 import android.content.Context
 import com.a1c.app.data.A1CRepository
+import com.a1c.app.data.HealthConnectReader
 import com.a1c.app.data.Outbox
 import com.a1c.app.data.api.A1CApi
 import kotlinx.serialization.json.Json
@@ -25,6 +26,6 @@ class AppContainer(baseUrl: String, appContext: Context) {
         .build()
         .create(A1CApi::class.java)
 
-    val repository = A1CRepository(api, Outbox(appContext))
+    val repository = A1CRepository(api, Outbox(appContext), HealthConnectReader(appContext))
 }
 

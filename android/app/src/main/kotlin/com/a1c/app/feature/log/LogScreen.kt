@@ -26,8 +26,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.a1c.app.data.DoseLogResult
+import com.a1c.app.data.HealthConnectState
 import com.a1c.app.data.LogData
+import com.a1c.app.data.api.ActivityDto
 import com.a1c.app.data.api.GlucoseReadingDto
+import com.a1c.app.data.api.NutritionDto
 import com.a1c.app.ui.theme.Accent
 import com.a1c.app.ui.theme.AccentDim
 import com.a1c.app.ui.theme.OnSurfaceDim
@@ -51,6 +54,7 @@ fun LogScreen(
     data: LogData,
     onLogDose: (Int, String, (DoseLogResult) -> Unit) -> Unit,
     onRefresh: () -> Unit,
+    onRequestHealthPermissions: () -> Unit = {},
 ) {
     var unitsText by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf<String?>(null) }
@@ -220,7 +224,15 @@ fun LogScreen(
         }
         Spacer(Modifier.height(24.dp))
 
-        GlucoseCard(glucose = data.glucose)
+        GlucoseCard(
+            glucose = data.glucose,
+            days = data.days,
+            activities = data.activities,
+            nutrition = data.nutrition,
+            healthConnect = data.healthConnect,
+            healthRead = data.healthRead,
+            onRequestHealthPermissions = onRequestHealthPermissions,
+        )
 
         Spacer(Modifier.height(24.dp))
 
@@ -386,7 +398,15 @@ private fun CurrentGlucoseLine(glucose: List<GlucoseReadingDto>, now: Instant = 
 }
 
 @Composable
-private fun GlucoseCard(glucose: List<GlucoseReadingDto>) {
+private fun GlucoseCard(
+    glucose: List<GlucoseReadingDto>,
+    days: List<com.a1c.app.data.api.DayDto>,
+    activities: List<ActivityDto>,
+    nutrition: List<NutritionDto>,
+    healthConnect: HealthConnectState,
+    healthRead: com.a1c.app.data.HealthReadResult?,
+    onRequestHealthPermissions: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,
@@ -405,20 +425,126 @@ private fun GlucoseCard(glucose: List<GlucoseReadingDto>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                GlucoseChart(glucose)
+                Row {
+                    DayBars(
+                        days = days,
+                        healthConnect = healthConnect,
+                        healthRead = healthRead,
+                        onRequestHealthPermissions = onRequestHealthPermissions,
+                        modifier = Modifier.width(64.dp),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    GlucoseChart(glucose, activities, nutrition, modifier = Modifier.weight(1f))
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(clockLabel.format(Instant.parse(glucose.first().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     Text("target 3.9–10", color = AccentDim, fontSize = 11.sp)
                     Text(clockLabel.format(Instant.parse(glucose.last().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    LegendDot(Accent, "glucose")
+                    LegendDot(Color.White.copy(alpha = 0.85f), "food")
+                    LegendDot(AccentDim.copy(alpha = 0.35f), "exercise")
+                }
             }
         }
     }
 }
 
+/**
+ * Three gas-gauge mini bars for today's totals (insulin / carbs / exercise),
+ * each scaled to its own 14-day max. Health Connect missing → waiting state
+ * here only; dose logging is never affected.
+ */
 @Composable
-private fun GlucoseChart(readings: List<GlucoseReadingDto>) {
+private fun DayBars(
+    days: List<com.a1c.app.data.api.DayDto>,
+    healthConnect: HealthConnectState,
+    healthRead: com.a1c.app.data.HealthReadResult?,
+    onRequestHealthPermissions: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val today = LocalDate.now().toString()
+    val todayRow = days.lastOrNull { it.date == today }
+    val window = days.takeLast(14)
+    val maxInsulin = window.maxOfOrNull { it.totalUnits }?.coerceAtLeast(1) ?: 1
+    val maxCarbs = window.maxOfOrNull { it.carbsG }?.coerceAtLeast(1) ?: 1
+    val maxExercise = window.maxOfOrNull { it.exerciseMin }?.coerceAtLeast(1) ?: 1
+
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        GaugeBar(
+            label = "${todayRow?.totalUnits ?: 0} u",
+            fraction = (todayRow?.totalUnits ?: 0).toFloat() / maxInsulin,
+            color = Accent,
+        )
+        GaugeBar(
+            label = "${todayRow?.carbsG ?: 0} g",
+            fraction = (todayRow?.carbsG ?: 0).toFloat() / maxCarbs,
+            color = Color.White.copy(alpha = 0.85f),
+        )
+        GaugeBar(
+            label = "${todayRow?.exerciseMin ?: 0} m",
+            fraction = (todayRow?.exerciseMin ?: 0).toFloat() / maxExercise,
+            color = AccentDim.copy(alpha = 0.6f),
+        )
+        when (healthConnect) {
+            is HealthConnectState.NeedsPermissions -> TextButton(
+                onClick = onRequestHealthPermissions,
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                modifier = Modifier.height(24.dp),
+            ) {
+                Text("Connect", fontSize = 11.sp, color = Accent)
+            }
+            is HealthConnectState.Unavailable, is HealthConnectState.UpdateRequired ->
+                Text(
+                    "no Health",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            else -> {}
+        }
+        // Temporary slice-6 diagnostic: what the reader saw this refresh.
+        val readSummary = healthRead?.summary ?: "no read yet"
+        Text(
+            text = readSummary,
+            fontSize = 9.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+        )
+    }
+}
+
+/** One horizontal mini bar with its value above it. */
+@Composable
+private fun GaugeBar(label: String, fraction: Float, color: Color) {
+    Column {
+        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(3.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp)),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .height(6.dp)
+                    .background(color, RoundedCornerShape(3.dp)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun GlucoseChart(
+    readings: List<GlucoseReadingDto>,
+    activities: List<ActivityDto>,
+    nutrition: List<NutritionDto>,
+    modifier: Modifier = Modifier,
+) {
     val mmol = readings.map { it.mmolL ?: it.sgv / 18.0 }
     val times = readings.map { Instant.parse(it.time).toEpochMilli() }
     val t0 = times.first()
@@ -430,11 +556,35 @@ private fun GlucoseChart(readings: List<GlucoseReadingDto>) {
     val bandBottom = 3.9.coerceAtLeast(lo)
     val lineColor = Accent
 
-    Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
+    // Context markers, clipped to the visible window.
+    val exerciseBands = activities.mapNotNull {
+        val start = runCatching { Instant.parse(it.startedAt).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
+        val end = runCatching { Instant.parse(it.endedAt).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
+        val x0 = ((start - t0).toFloat() / span).coerceIn(0f, 1f)
+        val x1 = ((end - t0).toFloat() / span).coerceIn(0f, 1f)
+        if (x1 - x0 < 0.002f) null else x0 to x1
+    }
+    val foodDots = nutrition.mapNotNull {
+        val t = runCatching { Instant.parse(it.takenAt).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
+        if (t < t0 || t > t1) null else (t - t0).toFloat() / span
+    }
+
+    Canvas(modifier = modifier.fillMaxWidth().height(140.dp)) {
         val pad = 2.dp.toPx()
         fun y(v: Double): Float {
             val frac = ((v - lo) / (hi - lo)).coerceIn(0.0, 1.0)
             return (size.height - pad) - (frac * (size.height - 2 * pad)).toFloat()
+        }
+        fun x(frac: Float): Float = frac * size.width
+
+        // Exercise sessions: shaded full-height bands (they have duration and
+        // their glucose effect lingers — a point would lie about that).
+        exerciseBands.forEach { (x0, x1) ->
+            drawRect(
+                color = AccentDim.copy(alpha = 0.18f),
+                topLeft = Offset(x(x0), 0f),
+                size = Size(x(x1) - x(x0), size.height),
+            )
         }
 
         // Target band 3.9–10 mmol/L
@@ -448,16 +598,42 @@ private fun GlucoseChart(readings: List<GlucoseReadingDto>) {
         // Curve
         val path = Path().apply {
             times.forEachIndexed { i, t ->
-                val x = ((t - t0).toFloat() / span) * size.width
-                if (i == 0) moveTo(x, y(mmol[i])) else lineTo(x, y(mmol[i]))
+                val px = ((t - t0).toFloat() / span) * size.width
+                if (i == 0) moveTo(px, y(mmol[i])) else lineTo(px, y(mmol[i]))
             }
         }
         drawPath(path, color = lineColor, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+
+        // Food dots on the curve at intake time (linear between readings).
+        foodDots.forEach { frac ->
+            val target = t0 + (frac * span).toLong()
+            val glucoseY = interpolateY(times, mmol, target)?.let { y(it) } ?: return@forEach
+            drawCircle(
+                color = Color.White.copy(alpha = 0.9f),
+                radius = 3.dp.toPx(),
+                center = Offset(x(frac), glucoseY),
+            )
+        }
 
         // Latest point
         val lastX = ((times.last() - t0).toFloat() / span) * size.width
         drawCircle(color = lineColor, radius = 4.dp.toPx(), center = Offset(lastX, y(mmol.last())))
     }
+}
+
+/** Glucose value at [target] by linear interpolation between bracketing readings. */
+private fun interpolateY(times: List<Long>, mmol: List<Double>, target: Long): Double? {
+    if (times.isEmpty()) return null
+    if (target <= times.first()) return mmol.first()
+    if (target >= times.last()) return mmol.last()
+    val nextIdx = times.indexOfFirst { it > target }
+    if (nextIdx <= 0) return mmol.first()
+    val prevIdx = nextIdx - 1
+    val t0 = times[prevIdx]
+    val t1 = times[nextIdx]
+    if (t1 == t0) return mmol[nextIdx]
+    val frac = (target - t0).toDouble() / (t1 - t0)
+    return mmol[prevIdx] + frac * (mmol[nextIdx] - mmol[prevIdx])
 }
 
 @Composable

@@ -31,6 +31,20 @@ module Api
         assert_equal 120, NutritionEntry.last.calories_kcal
       end
 
+      # Regression: first real Health Connect sync sent 53.4 g carbs /
+      # 150.5 kcal and integer columns 422'd it. Zepp writes fractional.
+      test "accepts fractional carbs and kcal from Health Connect" do
+        post api_v1_nutrition_index_url, params: {
+          taken_at: "2026-09-29T22:01:00-06:00", carbs_g: 53.4, calories_kcal: 241.0,
+          meal_type: "lunch", source: "com.huami.watch.hmwatchmanager", client_id: "hc:rice"
+        }, as: :json
+
+        assert_response :created
+        entry = NutritionEntry.last
+        assert_in_delta 53.4, entry.carbs_g.to_d, 0.001
+        assert_in_delta 241.0, entry.calories_kcal.to_d, 0.001
+      end
+
       test "rejects entries with neither carbs nor kcal" do
         post api_v1_nutrition_index_url, params: {
           taken_at: "2026-09-29T10:00:00-06:00", client_id: "hc:empty"

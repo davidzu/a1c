@@ -1,17 +1,22 @@
 package com.a1c.app.data
 
 import com.a1c.app.data.api.A1CApi
+import com.a1c.app.data.api.ActivityDto
 import com.a1c.app.data.api.ApiErrors
 import com.a1c.app.data.api.DailyTotalDto
+import com.a1c.app.data.api.DayDto
 import com.a1c.app.data.api.DoseDto
 import com.a1c.app.data.api.GlucoseReadingDto
 import com.a1c.app.data.api.NewDoseDto
+import com.a1c.app.data.api.NutritionDto
 import com.a1c.app.data.api.SettingsDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 sealed interface DoseLogResult {
@@ -25,13 +30,18 @@ sealed interface DoseLogResult {
     data class Failure(val message: String) : DoseLogResult
 }
 
-class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
+class A1CRepository(
+    private val api: A1CApi,
+    private val outbox: Outbox,
+    private val health: HealthConnectReader? = null,
+) {
 
     private val _log = MutableStateFlow(LogData.empty())
     val log: StateFlow<LogData> = _log.asStateFlow()
 
     suspend fun refresh() {
         syncOutbox()
+        syncHealthConnect()
         fetch()
     }
 
@@ -97,6 +107,41 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
         }
     }
 
+    /**
+     * Health Connect pipe (ADR-003): surface the availability state, then
+     * read-and-POST everything in the window. Stateless — the server dedupes
+     * on `hc:<metadata-id>`, so re-reading is free. Failures never block
+     * dose logging; the data stays on the phone until a later refresh.
+     */
+    private suspend fun syncHealthConnect() {
+        val reader = health ?: return
+        val state = runCatching { reader.status() }.getOrDefault(HealthConnectState.Unavailable)
+        _log.update { it.copy(healthConnect = state) }
+        if (state != HealthConnectState.Ready) return
+
+        val since = Instant.now().minus(HealthConnectReader.READ_WINDOW_DAYS, ChronoUnit.DAYS)
+        val result = reader.readSince(since)
+        _log.update { it.copy(healthRead = result) }
+        if (result.uploads.isEmpty) return
+
+        try {
+            if (result.uploads.activities.isNotEmpty()) {
+                api.createActivities(result.uploads.activities)
+            }
+            if (result.uploads.nutrition.isNotEmpty()) {
+                api.createNutrition(result.uploads.nutrition)
+            }
+            _log.update { it.copy(healthRead = result.copy(error = null)) }
+        } catch (e: Exception) {
+            val msg = when {
+                e is retrofit2.HttpException && e.code() in 400..499 ->
+                    "upload rejected ${e.code()}"
+                else -> "upload offline (kept for retry)"
+            }
+            _log.update { it.copy(healthRead = result.copy(error = msg)) }
+        }
+    }
+
     /** Fetch server state and merge any still-pending doses for display. */
     private suspend fun fetch() {
         try {
@@ -111,6 +156,21 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
             } catch (_: Exception) {
                 _log.value.glucose
             }
+            val days = try {
+                api.days(DAYS).days
+            } catch (_: Exception) {
+                _log.value.days
+            }
+            val activities = try {
+                api.activities(GLUCOSE_HOURS).activities
+            } catch (_: Exception) {
+                _log.value.activities
+            }
+            val nutrition = try {
+                api.nutrition(GLUCOSE_HOURS).nutrition
+            } catch (_: Exception) {
+                _log.value.nutrition
+            }
             val pending = outbox.snapshot()
             _log.update {
                 doses.let { fetched ->
@@ -121,6 +181,11 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
                         pendingCount = pending.size,
                         loadError = null,
                         glucose = glucose,
+                        days = days,
+                        activities = activities,
+                        nutrition = nutrition,
+                        healthConnect = it.healthConnect,
+                        healthRead = it.healthRead,
                     ).mergedWith(pending)
                 }
             }
@@ -141,6 +206,7 @@ class A1CRepository(private val api: A1CApi, private val outbox: Outbox) {
 
     companion object {
         const val GLUCOSE_HOURS = 24
+        const val DAYS = 14
     }
 }
 
@@ -153,6 +219,16 @@ data class LogData(
     val loadError: String? = null,
     /** CGM readings, ascending by time, last N hours. Empty until synced. */
     val glucose: List<GlucoseReadingDto> = emptyList(),
+    /** Unified day rows (insulin/carbs/kcal/exercise) from /days, ascending. */
+    val days: List<DayDto> = emptyList(),
+    /** Exercise sessions, last 24 h — drawn as bands on the glucose curve. */
+    val activities: List<ActivityDto> = emptyList(),
+    /** Food entries, last 24 h — drawn as dots on the glucose curve. */
+    val nutrition: List<NutritionDto> = emptyList(),
+    /** Health Connect availability/permission state for the day bars. */
+    val healthConnect: HealthConnectState = HealthConnectState.Unavailable,
+    /** Last Health Connect read: counts or the error that stopped it. */
+    val healthRead: HealthReadResult? = null,
 ) {
     /**
      * Merge pending (offline) doses into the display state. Display-only:

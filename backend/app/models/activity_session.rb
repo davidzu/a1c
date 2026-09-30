@@ -2,7 +2,7 @@ class ActivitySession < ApplicationRecord
   validates :started_at, :ended_at, presence: true
   validates :minutes, numericality: { only_integer: true, greater_than: 0 }
   validates :calories_kcal, :avg_hr, :max_hr,
-            numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+            numericality: { greater_than: 0 }, allow_nil: true
   validate :ends_after_start
 
   validates :client_id, presence: true, uniqueness: true

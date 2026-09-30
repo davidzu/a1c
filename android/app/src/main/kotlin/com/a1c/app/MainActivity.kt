@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +59,12 @@ fun A1CApp(container: AppContainer) {
     val configViewModel: ConfigViewModel = viewModel(factory = SimpleFactory { ConfigViewModel(container.repository) })
     val data by logViewModel.log.collectAsState()
 
+    // Health Connect permission flow: request, then refresh so the reader
+    // picks up data immediately after the user grants access.
+    val healthPermissionsLauncher = rememberLauncherForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract(),
+    ) { logViewModel.refresh() }
+
     val destinations = listOf(Destination.Log, Destination.Insulins, Destination.Generals)
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -104,6 +111,9 @@ fun A1CApp(container: AppContainer) {
                     data = data,
                     onLogDose = logViewModel::logDose,
                     onRefresh = logViewModel::refresh,
+                    onRequestHealthPermissions = {
+                        healthPermissionsLauncher.launch(com.a1c.app.data.HealthConnectReader.PERMISSIONS.toSet())
+                    },
                 )
             }
             composable(Destination.Insulins.route) {

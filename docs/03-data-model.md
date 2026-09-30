@@ -103,7 +103,7 @@ exercise band on the glucose curve:
 | `started_at` | datetime | `null: false`; session start (UTC) |
 | `ended_at` | datetime | `null: false`; session end; model: `ended_at > started_at` |
 | `minutes` | integer | computed at ingest (`ended_at - started_at`), `>= 1` |
-| `calories_kcal` | integer | optional; active calories from Health Connect |
+| `calories_kcal` | decimal(9,2) | optional; active calories from Health Connect |
 | `avg_hr` | integer | optional; bpm |
 | `max_hr` | integer | optional; bpm |
 | `source` | string | optional; e.g. `Zepp`, `HealthConnect:Amazfit Balance` |
@@ -117,8 +117,8 @@ exercise band on the glucose curve:
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `taken_at` | datetime | `null: false`; meal time (UTC) |
-| `carbs_g` | integer | optional; grams of carbohydrate — the primary number |
-| `calories_kcal` | integer | optional; kcal |
+| `carbs_g` | decimal(9,2) | optional; grams of carbohydrate — the primary number |
+| `calories_kcal` | decimal(9,2) | optional; kcal |
 | `meal_type` | string | optional; `unknown/breakfast/lunch/dinner/snack` |
 | `source` | string | optional |
 | `client_id` | string | `null: false`; **unique**; same scheme as activity |

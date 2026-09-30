@@ -13,8 +13,8 @@ android {
         applicationId = "com.a1c.app"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
 
     flavorDimensions += "env"
@@ -66,5 +66,6 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.health.connect.client)
     testImplementation(libs.junit)
 }

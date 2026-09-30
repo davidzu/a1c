@@ -57,6 +57,11 @@ already uses and add friction — the one thing the vision forbids.
    - `a1c_entries` — `measured_on` (date, unique), `value`. A1C becomes a
      series: every `PATCH /api/v1/settings` that sets `last_a1c` also
      upserts today's row. `settings.last_a1c` stays the "current" value.
+   - Amended 2026-09-30 after the first real Health Connect sync:
+     `carbs_g` and `calories_kcal` are **decimal(9,2)**, not integers —
+     Zepp writes fractional values (53.4 g carbs, 150.5 kcal) and integer
+     columns rejected them with 422. `minutes`, `avg_hr`, `max_hr` stay
+     integers.
 6. **Endpoints** (all under `/api/v1`, no auth, same error contract):
    - `POST /api/v1/activities` — single object or array → `{ingested, received}`.
    - `POST /api/v1/nutrition` — same shape.
