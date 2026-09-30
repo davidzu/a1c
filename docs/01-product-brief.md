@@ -31,10 +31,29 @@ because it is only reachable by Sonic's phone (keep the Render URL private).
    it. Readings come from the CGM via xDrip+ (see ADR-002); A1See never talks
    to the sensor.
 
-## What it does not do (v1)
+## What it also does (v2.x — daily context, per docs/ADR-003-activity-nutrition.md)
+
+6. **Day context, automatically** — exercise and food arrive from the phone
+   itself: Health Connect feeds A1See the day's workouts (minutes, kcal,
+   heart rate) and meals (carbs g, kcal) logged by Zepp or any food app. No
+   new forms in the daily flow. The Log screen shows three small daily bars
+   (insulin units · carbs g · exercise minutes) and marks food and exercise
+   directly on the glucose curve.
+7. **Doctor report** — a printable web page on the API host (`/report`)
+   with the standard CGM metrics doctors read (time in range, GMI,
+   variability), a 24-hour glucose profile, the per-day context table
+   (insulin · carbs · kcal · exercise), and the A1C history over time.
+   No login: the URL is private.
+
+## What it does not do (v1; amended where noted)
 
 - No login, no accounts, no password.
-- No food, carbs, glucose readings, or bolus calculators.
+- ~~No food, carbs, glucose readings, or bolus calculators.~~ Glucose came in
+  with v2 (ADR-002); food/carbs arrive as automatic context in v2.x
+  (ADR-003). Still true: no food database, no barcode scanning, no bolus
+  calculator, no meal planning — A1See shows context, it does not advise.
 - No editing/deleting doses (v2 if ever needed).
-- No charts other than the daily totals bar graph.
+- No charts other than the daily totals bar graph — amended by the glucose
+  curve, the day-context bars, and the web report (they serve the same
+  "see the day" purpose).
 - No multi-day pickers: the log is "now", the graph is history.

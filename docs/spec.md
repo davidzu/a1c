@@ -65,3 +65,45 @@ until N is delivered (see `PIPELINE.md`).
 6. xDrip+ on the phone: data source 640g/Eversense (receives SugarJoy+
    broadcasts), Nightscout REST upload pointed at the Render ingest URL.
    Delivered when glucose shows in the app from live sensor data.
+
+## Slice 6 — daily context (v2.x, per docs/ADR-003-activity-nutrition.md)
+
+1. Backend: `activity_sessions`, `nutrition_entries`, `a1c_entries` tables
+   (unique `client_id` / `measured_on`), models with the ADR-003 validations.
+2. `POST /api/v1/activities` + `POST /api/v1/nutrition` — single object or
+   array, idempotent on `client_id` (retries free, first wins), same
+   `{ingested, received}` response shape as `/entries`.
+3. `GET /api/v1/activities?hours=N` + `GET /api/v1/nutrition?hours=N`
+   (default 24, max 336) — ascending lists, same clamps as glucose.
+4. `GET /api/v1/days?days=N` (default 30, max 180) — unified per-day totals
+   in local time: insulin (fast/slow/total), carbs_g, calories_kcal,
+   exercise_min.
+5. `PATCH /api/v1/settings` with `last_a1c` also upserts `a1c_entries` for
+   today (local day). Request tests for all endpoints + days math + A1C
+   upsert.
+6. Android: Health Connect reader (exercise sessions, active calories,
+   nutrition records) — read-only, permission-gated; uploads new records
+   with `client_id = hc:<metadata-id>`.
+7. Log screen: three day-context mini-bars (insulin units / carbs g /
+   exercise minutes, each scaled to its own 14-day max) + food dots and
+   exercise bands on the glucose curve. Health Connect missing → waiting
+   state on the bars only; logging stays untouched.
+8. Delivered when a workout logged on the Balance and a meal logged in a
+   food app show up on the phone's Log screen without manual entry.
+
+## Slice 7 — doctor report (v2.x, per docs/ADR-003-activity-nutrition.md)
+
+1. `GET /report?days=N` (default 14, max 90) — server-rendered ERB + inline
+   CSS + server-side SVG; printable, no JS framework.
+2. ADA Standard CGM metrics: days of data, % time active, mean glucose, GMI
+   (`3.31 + 0.02392 × mean mg/dL`), variability (CV ≤36%), time-in-range
+   stacked bar with the consensus targets (TIR >70%, TAR L1 <25% / L2 <5%,
+   TBR L1 <4% / L2 <1%).
+3. AGP-style 24-hour median profile with percentile band.
+4. Per-day context table: insulin fast/slow/total · carbs g · kcal ·
+   exercise minutes.
+5. A1C history chart: `a1c_entries` + GMI trend line.
+6. Day detail view: any day's glucose curve with food, exercise, and dose
+   markers.
+7. Delivered when the report renders from live Render data and prints
+   cleanly.

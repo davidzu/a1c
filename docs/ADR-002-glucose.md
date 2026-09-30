@@ -38,4 +38,5 @@ next to insulin doses.
 - Glucose history lives in Render Postgres, so the 24 h chart renders
   instantly on open without polling all day.
 - If xDrip is off, the app shows a waiting state; doses keep working.
-- v2 slice: `slice-5-glucose` (see spec.md).
+- v2 slice: `slice-5-glucose` (see spec.md). Daily context around the curve
+  (exercise bands, food dots) is extended by ADR-003.

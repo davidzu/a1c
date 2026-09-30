@@ -20,7 +20,10 @@ class DropLegacyCommunityTables < ActiveRecord::Migration[8.1]
 
   def up
     LEGACY_TABLES.each do |table|
-      drop_table table if table_exists?(table)
+      # CASCADE: some legacy tables have FKs between them (e.g. routes → tries)
+      # that the original schema never dropped cleanly. The tables and their
+      # constraints are all legacy objects being removed together.
+      drop_table table, if_exists: true, force: :cascade if table_exists?(table)
     end
   end
 

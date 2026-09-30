@@ -35,3 +35,5 @@ Do not skip. Do not start N+1 until N is delivered.
 | `slice-3-config` | Insulins + Generals screens wired to settings | Set names, weight, A1C from the phone |
 | `slice-4-polish` | Timestamp behavior, empty/error states, demo flavor BASE_URL | Daily-driver quality |
 | `slice-5-glucose` | CGM glucose via xDrip+ → `/api/v1/entries` → Log screen | See glucose next to doses |
+| `slice-6-context` | Health Connect → `/api/v1/activities` + `/api/v1/nutrition` + `/api/v1/days`; day bars + markers on the glucose curve | See carbs and exercise next to glucose, automatically |
+| `slice-7-report` | `/report` web dashboard: ADA metrics, AGP profile, per-day table, A1C history | Hand the doctor one printable URL |

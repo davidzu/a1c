@@ -92,6 +92,53 @@ doses a day this is instant on Postgres; no counter cache, no rollup table.
 
 Append-only like doses. No per-user scoping (single user).
 
+## Activity sessions (v2.x, per docs/ADR-003-activity-nutrition.md)
+
+`activity_sessions` — one row per workout, uploaded by the Android app after
+reading Health Connect (source: Zepp / the Balance). Nightscout-style
+exercise band on the glucose curve:
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `started_at` | datetime | `null: false`; session start (UTC) |
+| `ended_at` | datetime | `null: false`; session end; model: `ended_at > started_at` |
+| `minutes` | integer | computed at ingest (`ended_at - started_at`), `>= 1` |
+| `calories_kcal` | integer | optional; active calories from Health Connect |
+| `avg_hr` | integer | optional; bpm |
+| `max_hr` | integer | optional; bpm |
+| `source` | string | optional; e.g. `Zepp`, `HealthConnect:Amazfit Balance` |
+| `client_id` | string | `null: false`; **unique**; `hc:<metadata-id>` for Health Connect records, UUID for manual adds |
+
+## Nutrition entries (v2.x, per docs/ADR-003-activity-nutrition.md)
+
+`nutrition_entries` — one row per logged meal/snack from Health Connect
+(NutritionRecord) or a later quick-add:
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `taken_at` | datetime | `null: false`; meal time (UTC) |
+| `carbs_g` | integer | optional; grams of carbohydrate — the primary number |
+| `calories_kcal` | integer | optional; kcal |
+| `meal_type` | string | optional; `unknown/breakfast/lunch/dinner/snack` |
+| `source` | string | optional |
+| `client_id` | string | `null: false`; **unique**; same scheme as activity |
+
+- At least one of `carbs_g` / `calories_kcal` must be present.
+- Display unit for food is **carbs (g)**; kcal is secondary context.
+
+## A1C entries (v2.x, per docs/ADR-003-activity-nutrition.md)
+
+`a1c_entries` — the lab A1C as a series, for the report's history chart:
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `measured_on` | date | `null: false`; **unique**; one value per day |
+| `value` | decimal(3,1) | `null: false`; `> 0` |
+
+- Every `PATCH /api/v1/settings` that sets `last_a1c` upserts
+  `measured_on = today` (local day). `settings.last_a1c` remains the
+  "current" value; the series is the history. Seed leaves it empty.
+
 ## What is deliberately absent
 
 - No `users`, `sessions`, tokens. No auth by contract.
@@ -101,5 +148,6 @@ Append-only like doses. No per-user scoping (single user).
 - Legacy tables inherited from the communities schema (users, sessions,
   missions, tries, groups, memberships, specialities, evidences,
   invite_codes, active_storage) were dropped by migration
-  `20260926000001` — this app only ever owns `doses`, `settings`, and
-  (since v2) `glucose_readings`.
+  `20260926000001` — this app only ever owns `doses`, `settings`,
+  `glucose_readings`, and (since v2.x) `activity_sessions`,
+  `nutrition_entries`, `a1c_entries`.

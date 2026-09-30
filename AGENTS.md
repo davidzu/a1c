@@ -9,11 +9,13 @@ and its offline outbox).
 ## Vision (do not dilute)
 
 A1See is a personal insulin tracker. Log every injection in seconds, several
-times a day, and see the daily total at a glance.
+times a day, and see the daily total at a glance — with the day's glucose,
+carbs, and exercise around every dose.
 
 Every feature is judged against that sentence. The log form is the product;
 config screens exist only to feed it. Nothing may add friction between
-opening the app and having a dose saved.
+opening the app and having a dose saved. Context (glucose, food, exercise)
+must arrive automatically or not at all.
 
 ## Current contract
 
@@ -21,8 +23,11 @@ v1 is the contract. `docs/ADR-001-architecture.md` wins. The numbered build
 list is `docs/spec.md`.
 
 **v2 started**: glucose readings follow `docs/ADR-002-glucose.md`
-(`glucose_readings` table + Nightscout-format ingest via xDrip+). All other
-v1 rules below still hold.
+(`glucose_readings` table + Nightscout-format ingest via xDrip+). **v2.x
+started**: exercise + food context follow `docs/ADR-003-activity-nutrition.md`
+(Health Connect ingest, `activity_sessions`/`nutrition_entries`/`a1c_entries`,
+day bars + curve markers, `/report` doctor dashboard). All other v1 rules
+below still hold.
 
 Locked for v1:
 
@@ -32,7 +37,9 @@ Locked for v1:
 - REST JSON under `/api/v1`. No WebSockets, no FCM.
 - No Room on Android. Repository talks to the API; a small DataStore (JSON)
   outbox holds doses pending sync — that is the only local persistence.
-- Data model is `doses` + one `settings` row. Nothing else.
+- Data model is `doses` + one `settings` row. Nothing else. (Amended by
+  ADR-002 and ADR-003: `glucose_readings`, `activity_sessions`,
+  `nutrition_entries`, `a1c_entries` join the model in v2/v2.x.)
 - Day bucketing for the graph is local time in `settings.timezone`
   (default `America/Monterrey`), never UTC. Offline doses carry `taken_at`
   (real injection time) and `client_id` (idempotency UUID).

@@ -86,6 +86,31 @@ module Api
         assert_equal "validation_failed", body.dig("error", "code")
         assert_equal "timezone", body.dig("error", "field")
       end
+
+      test "setting last_a1c appends to the a1c series" do
+        patch api_v1_settings_url, params: { last_a1c: "7.2" }, as: :json
+        assert_response :ok
+        assert_equal 1, A1cEntry.count
+        assert_in_delta 7.2, A1cEntry.last.value
+        # The upsert uses the configured local day (default America/Monterrey),
+        # which may differ from the test process's UTC date.
+        assert_equal Time.current.in_time_zone(Setting.instance.timezone).to_date,
+                     A1cEntry.last.measured_on
+      end
+
+      test "same-day a1c update overwrites today's point, not adds" do
+        patch api_v1_settings_url, params: { last_a1c: "7.2" }, as: :json
+        patch api_v1_settings_url, params: { last_a1c: "7.0" }, as: :json
+
+        assert_equal 1, A1cEntry.count
+        assert_in_delta 7.0, A1cEntry.last.value
+      end
+
+      test "unrelated settings update does not add an a1c point" do
+        patch api_v1_settings_url, params: { weight_kg: "79" }, as: :json
+        assert_response :ok
+        assert_equal 0, A1cEntry.count
+      end
     end
   end
 end
