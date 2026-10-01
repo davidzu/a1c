@@ -44,13 +44,22 @@ module Api
         ended = parse_time(record[:ended_at])
         return nil if started.nil? || ended.nil?
 
+        # Zero means "not tracked": coerce to nil so the > 0 validation
+        # can't reject the whole batch on one empty field.
+        kcal = record[:calories_kcal].presence
+        kcal = nil if kcal.to_f <= 0
+        avg = record[:avg_hr].presence
+        avg = nil if avg.to_i <= 0
+        max = record[:max_hr].presence
+        max = nil if max.to_i <= 0
+
         ActivitySession.new(
           started_at: started,
           ended_at: ended,
           minutes: record[:minutes].presence || ((ended - started) / 60).round,
-          calories_kcal: record[:calories_kcal],
-          avg_hr: record[:avg_hr],
-          max_hr: record[:max_hr],
+          calories_kcal: kcal,
+          avg_hr: avg,
+          max_hr: max,
           source: record[:source],
           client_id: record[:client_id]
         )

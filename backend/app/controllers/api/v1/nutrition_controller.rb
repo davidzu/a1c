@@ -42,10 +42,17 @@ module Api
         taken = parse_time(record[:taken_at])
         return nil if taken.nil?
 
+        # Zero means "not tracked" (e.g. a black coffee logged with kcal only):
+        # coerce to nil so the > 0 validation can't reject the whole batch.
+        carbs = record[:carbs_g].presence
+        carbs = nil if carbs.to_f <= 0
+        kcal = record[:calories_kcal].presence
+        kcal = nil if kcal.to_f <= 0
+
         NutritionEntry.new(
           taken_at: taken,
-          carbs_g: record[:carbs_g],
-          calories_kcal: record[:calories_kcal],
+          carbs_g: carbs,
+          calories_kcal: kcal,
           meal_type: record[:meal_type],
           source: record[:source],
           client_id: record[:client_id]

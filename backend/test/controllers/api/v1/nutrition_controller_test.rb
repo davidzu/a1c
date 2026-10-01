@@ -108,6 +108,21 @@ module Api
         get api_v1_nutrition_index_url(params: { hours: 1000 }), as: :json
         assert_equal 1, JSON.parse(response.body).dig("nutrition").size
       end
+
+      # Regression 2: a real Zepp meal logged with zero carbs (black coffee,
+      # kcal only) 422'd the whole batch with "Carbs g must be greater than 0".
+      test "coerces zero carbs to nil instead of rejecting" do
+        post api_v1_nutrition_index_url, params: {
+          taken_at: "2026-09-29T22:01:00-06:00", carbs_g: 0, calories_kcal: 5.0,
+          source: "com.huami.watch.hmwatchmanager", client_id: "hc:coffee"
+        }, as: :json
+
+        assert_response :created
+        assert_equal 1, JSON.parse(response.body).dig("ingested")
+        entry = NutritionEntry.last
+        assert_nil entry.carbs_g
+        assert_in_delta 5.0, entry.calories_kcal.to_d, 0.001
+      end
     end
   end
 end

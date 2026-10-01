@@ -135,7 +135,7 @@ class A1CRepository(
         } catch (e: Exception) {
             val msg = when {
                 e is retrofit2.HttpException && e.code() in 400..499 ->
-                    "upload rejected ${e.code()}"
+                    com.a1c.app.data.api.ApiErrors.saveSettings(e) // same envelope parser
                 else -> "upload offline (kept for retry)"
             }
             _log.update { it.copy(healthRead = result.copy(error = msg)) }

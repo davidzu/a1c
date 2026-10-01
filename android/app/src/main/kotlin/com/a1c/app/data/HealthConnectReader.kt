@@ -117,12 +117,15 @@ class HealthConnectReader(private val context: Context) {
                 .mapNotNull { meal ->
                     val carbs = meal.totalCarbohydrate?.inGrams
                     val kcal = meal.energy?.inKilocalories
-                    // Backend requires at least one of carbs/kcal; skip the rest.
-                    if ((carbs ?: 0.0) <= 0.0 && (kcal ?: 0.0) <= 0.0) return@mapNotNull null
+                    // Backend requires > 0 on any present value; a zero-carbs
+                    // food (black coffee) must send carbs as null, not 0.
+                    val carbsClean = carbs?.takeIf { it > 0.0 }
+                    val kcalClean = kcal?.takeIf { it > 0.0 }
+                    if (carbsClean == null && kcalClean == null) return@mapNotNull null
                     NewNutritionDto(
                         takenAt = meal.startTime.toString(),
-                        carbsG = carbs,
-                        caloriesKcal = kcal,
+                        carbsG = carbsClean,
+                        caloriesKcal = kcalClean,
                         mealType = mealType(meal.mealType),
                         source = meal.metadata.dataOrigin.packageName,
                         clientId = "hc:${meal.metadata.id}",
