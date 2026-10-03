@@ -49,4 +49,13 @@ class Dose < ApplicationRecord
       )
     SQL
   end
+
+  # Doses on local days within the last N local days (inclusive of today).
+  def self.in_local_days(zone, days)
+    where(
+      "#{local_day_sql(zone)} BETWEEN ? AND ?",
+      (days - 1).days.ago.in_time_zone(zone).to_date,
+      Time.current.in_time_zone(zone).to_date
+    )
+  end
 end

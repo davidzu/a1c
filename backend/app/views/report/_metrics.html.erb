@@ -1,0 +1,70 @@
+<header class="report-head">
+  <h1>A1See — Glucose report</h1>
+  <div class="sub">
+    <%= @report.start_date.strftime("%b %-d, %Y") %> – <%= @report.end_date.strftime("%b %-d, %Y") %>
+    · window: <%= @report.days %> days
+    · <%= link_to "7 days", report_url(days: 7, only_path: true), class: "daylink" %>
+    · <%= link_to "14 days", report_url(days: 14, only_path: true), class: "daylink" %>
+    · <%= link_to "30 days", report_url(days: 30, only_path: true), class: "daylink" %>
+    · <%= link_to "90 days", report_url(days: 90, only_path: true), class: "daylink" %>
+  </div>
+</header>
+
+<h2>Ambulatory glucose profile</h2>
+<% if @report.readings_count.zero? %>
+  <div class="empty">No CGM readings in this window yet.</div>
+<% else %>
+  <div class="metrics-grid">
+    <div class="metric">
+      <div class="label">Days of data</div>
+      <div class="value"><%= @report.days_of_data %></div>
+      <div class="goal">of <%= @report.days %> in window</div>
+    </div>
+    <div class="metric">
+      <div class="label">% time active</div>
+      <div class="value"><%= @report.pct_time_active %>%</div>
+      <div class="goal">readings vs 5-min sampling</div>
+    </div>
+    <div class="metric">
+      <div class="label">Mean glucose</div>
+      <div class="value"><%= @report.mean_glucose %></div>
+      <div class="goal">mg/dL</div>
+    </div>
+    <div class="metric">
+      <div class="label">GMI</div>
+      <div class="value"><%= @report.gmi %>%</div>
+      <div class="goal">3.31 + 0.02392 × mean</div>
+    </div>
+    <div class="metric">
+      <div class="label">Variability (CV)</div>
+      <div class="value <%= @report.cv && @report.cv > 36 ? "flag-bad" : "flag-good" %>"><%= @report.cv %>%</div>
+      <div class="goal">goal ≤ 36%</div>
+    </div>
+  </div>
+
+  <h2>Time in range</h2>
+  <% tir = @report.time_in_range %>
+  <div class="tir-bar">
+    <div style="width:<%= tir[:below_l2] %>% ; background:var(--tbr-l2)"></div>
+    <div style="width:<%= tir[:below_l1] %>% ; background:var(--tbr)"></div>
+    <div style="width:<%= tir[:in_range] %>% ; background:var(--in-range)"></div>
+    <div style="width:<%= tir[:above_l1] %>% ; background:var(--tar)"></div>
+    <div style="width:<%= tir[:above_l2] %>% ; background:var(--tar-l2)"></div>
+  </div>
+  <div class="tir-legend">
+    <span><span class="swatch" style="background:var(--tbr-l2)"></span><54 · <%= tir[:below_l2] %>% (goal <1%)</span>
+    <span><span class="swatch" style="background:var(--tbr)"></span>54–69 · <%= tir[:below_l1] %>% (goal <4%)</span>
+    <span><span class="swatch" style="background:var(--in-range)"></span>70–180 · <%= tir[:in_range] %>% (goal >70%)</span>
+    <span><span class="swatch" style="background:var(--tar)"></span>181–250 · <%= tir[:above_l1] %>% (goal <25%)</span>
+    <span><span class="swatch" style="background:var(--tar-l2)"></span>>250 · <%= tir[:above_l2] %>% (goal <5%)</span>
+  </div>
+
+  <h2>AGP · 24-hour median profile</h2>
+  <div class="chart"><%= ReportHelper.agp_svg(@report.agp_profile) %></div>
+  <div class="tir-legend">
+    <span><span class="swatch" style="background:#c4b5fd"></span>10–90th pct</span>
+    <span><span class="swatch" style="background:#8b5cf6"></span>25–75th pct</span>
+    <span><span class="swatch" style="background:#7c3aed"></span>median</span>
+    <span><span class="swatch" style="background:#4ade80"></span>target 70–180</span>
+  </div>
+<% end %>

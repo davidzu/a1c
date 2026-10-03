@@ -9,6 +9,24 @@ class ActivitySession < ApplicationRecord
 
   scope :recent, -> { order(started_at: :desc) }
 
+  # Local-day bucket expression on the session's start, same convention as
+  # doses and nutrition (midnight in the configured zone — never UTC).
+  def self.day_sql(zone)
+    quoted = connection.quote(zone)
+    <<~SQL.squish
+      date((started_at AT TIME ZONE 'UTC') AT TIME ZONE #{quoted})
+    SQL
+  end
+
+  # Rows on local days within the last N local days (inclusive of today).
+  def self.in_local_days(zone, days)
+    where(
+      "#{day_sql(zone)} BETWEEN ? AND ?",
+      (days - 1).days.ago.in_time_zone(zone).to_date,
+      Time.current.in_time_zone(zone).to_date
+    )
+  end
+
   def self.last_hours(hours)
     where(ended_at: hours.hours.ago..).order(started_at: :asc)
   end

@@ -1,0 +1,82 @@
+<h2>Daily context</h2>
+<% if @report.day_rows.empty? %>
+  <div class="empty">No doses, meals, or workouts in this window.</div>
+<% else %>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Fast u</th><th>Slow u</th><th>Total u</th>
+        <th>Carbs g</th><th>kcal</th><th>Exercise min</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @report.day_rows.each do |row| %>
+        <tr>
+          <td><%= link_to row[:date], report_url(days: @report.days, day: row[:date], only_path: true), class: "daylink" %></td>
+          <td><%= row[:fast_units] %></td>
+          <td><%= row[:slow_units] %></td>
+          <td><%= row[:total_units] %></td>
+          <td><%= row[:carbs_g] %></td>
+          <td><%= row[:calories_kcal] %></td>
+          <td><%= row[:exercise_min] %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>
+
+<h2>A1C history</h2>
+<% if @report.a1c_history.empty? && @report.gmi_trend.empty? %>
+  <div class="empty">No A1C entries or glucose-derived GMI yet.</div>
+<% else %>
+  <div class="chart"><%= ReportHelper.a1c_svg(@report.a1c_history, @report.gmi_trend) %></div>
+  <div class="tir-legend">
+    <span><span class="swatch" style="background:#7c3aed"></span>lab A1C</span>
+    <span><span class="swatch" style="background:#a78bfa"></span>GMI trend (from CGM mean)</span>
+  </div>
+<% end %>
+
+<% if @day %>
+  <h2>Day detail — <%= @day[:date] %></h2>
+  <% if @day[:glucose].empty? %>
+    <div class="empty">No CGM readings on this day.</div>
+  <% else %>
+    <div class="chart"><%= ReportHelper.day_svg(@day, zone: @report.zone) %></div>
+    <div class="tir-legend">
+      <span><span class="swatch" style="background:#ec4899"></span>fast dose (▲)</span>
+      <span><span class="swatch" style="background:#8b5cf6"></span>slow dose (▼)</span>
+      <span><span class="swatch" style="background:#f59e0b"></span>meal (●)</span>
+      <span><span class="swatch" style="background:#60a5fa"></span>workout band</span>
+    </div>
+  <% end %>
+  <table>
+    <thead><tr><th>Time</th><th>Event</th><th>Detail</th></tr></thead>
+    <tbody>
+      <% (@day[:doses] + @day[:meals] + @day[:workouts]).each do |e| %>
+        <% time = e.respond_to?(:effective_time) ? e.effective_time : (e.respond_to?(:taken_at) ? e.taken_at : e.started_at) %>
+        <% name, detail =
+             if e.is_a?(Dose)
+               ["#{e.kind.capitalize} dose", "#{e.units} u"]
+             elsif e.is_a?(NutritionEntry)
+               parts = [e.carbs_g && "#{e.carbs_g.to_i} g carbs", e.calories_kcal && "#{e.calories_kcal.to_i} kcal"].compact
+               [e.meal_type || "Meal", parts.join(", ")]
+             else
+               kcal = e.calories_kcal && "#{e.calories_kcal.to_i} kcal"
+               ["Exercise", [e.minutes.to_s + " min", kcal].compact.join(", ")]
+             end %>
+        <tr>
+          <td><%= time.strftime("%H:%M") %></td>
+          <td><%= name %></td>
+          <td><%= detail %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+  <p><%= link_to "← Back to full report", report_url(days: @report.days, only_path: true), class: "backlink" %></p>
+<% end %>
+
+<div class="footnote">
+  Units: mg/dL. GMI = 3.31 + 0.02392 × mean glucose. CV = sd/mean × 100, goal ≤ 36%.
+  Targets: 70–180 > 70% · >180 < 25% · >250 < 5% · <70 < 4% · <54 < 1% (ADA consensus).
+  Generated <%= Time.current.in_time_zone(@report.zone).strftime("%Y-%m-%d %H:%M %Z") %> · A1See.
+</div>
