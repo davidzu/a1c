@@ -45,8 +45,30 @@ module Api
           slow_name: settings.slow_name,
           weight_kg: settings.weight_kg&.to_f,
           last_a1c: settings.last_a1c&.to_f,
+          a1c_total: a1c_total,
           timezone: settings.timezone
         }
+      end
+
+      # A1C:Total — the moving everyday A1C (docs/design-system.md era):
+      # the average of the last lab-reported A1C and the glucose-derived GMI
+      # over the last 90 days (GMI = 3.31 + 0.02392 × mean glucose mg/dL).
+      # Moves daily with the CGM mean; anchors to the lab value. Falls back
+      # to whichever source exists.
+      def a1c_total
+        lab = A1cEntry.order(:measured_on).last&.value || Setting.instance.last_a1c
+        gmi = gmi_90d
+        return nil if lab.nil? && gmi.nil?
+        return (gmi || lab).to_f.round(1) if lab.nil? || gmi.nil?
+
+        ((lab + gmi) / 2).round(1)
+      end
+
+      def gmi_90d
+        mean = GlucoseReading.where(time: 90.days.ago..).average(:sgv)
+        return nil if mean.nil?
+
+        (3.31 + 0.02392 * mean.to_f).round(1)
       end
     end
   end

@@ -59,3 +59,19 @@ in this order:
 
 Delivery process: `PIPELINE.md`. A slice is not done until the Render API
 responds and the demo APK can use it.
+
+## UI/UX pipeline
+
+Agent skills are installed globally (`~/.agents/skills/`) and load on demand:
+
+- When building or refining Compose UI: rely on `ui-visual-composition` and
+  `better-ui` (hierarchy, spacing, hit areas, visual states).
+- Forms and data-entry flows (the log form is the product): consult
+  `forms-inputs-checkout` before touching the dose form.
+- Copy, labels, empty states, errors: `ux-writing-content-design`.
+- Accessibility gate: `better-accessibility` + `accessibility-inclusive-design`
+  (touch targets, contrast on the dark theme, focus order).
+- Before calling a UI slice done: run `@interface-review` for a full audit
+  (UI, typography, layout, color, writing, accessibility).
+- Use `@break` to stress-test a component in every state, and `@variant` to
+  iterate on alternatives when a screen feels off.

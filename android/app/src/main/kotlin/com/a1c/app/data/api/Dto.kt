@@ -59,6 +59,8 @@ data class SettingsDto(
     @SerialName("slow_name") val slowName: String,
     @SerialName("weight_kg") val weightKg: Double? = null,
     @SerialName("last_a1c") val lastA1c: Double? = null,
+    /** Moving everyday A1C: avg(last lab, 90-day GMI) — computed by the API. */
+    @SerialName("a1c_total") val a1cTotal: Double? = null,
     val timezone: String? = null,
 )
 

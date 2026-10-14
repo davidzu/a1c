@@ -16,6 +16,19 @@ val Accent = Color(0xFFC465D8)
 val AccentDim = Color(0xFF8A4A9E)
 val OnAccent = Color(0xFF1A0B20)
 
+// Metric identity colors — one hue per metric, used everywhere data
+// appears (log screen, glucose card, day bars, doctor report). See
+// docs/design-system.md. Accent is interactive chrome only, never data.
+// Insulin hues follow the actual pens: NovoRapid is orange, Ryzodeg's
+// cap is blue. InsulinOnBoard is the insulin currently acting — red,
+// reserved for this one card, never error.
+val Glucose = Color(0xFF22D3EE)
+val InsulinFast = Color(0xFFFB923C)
+val InsulinSlow = Color(0xFF60A5FA)
+val Food = Color(0xFFFACC15)
+val Exercise = Color(0xFF4ADE80)
+val InsulinOnBoard = Color(0xFFF87171)
+
 private val A1CColors = darkColorScheme(
     primary = Accent,
     onPrimary = OnAccent,

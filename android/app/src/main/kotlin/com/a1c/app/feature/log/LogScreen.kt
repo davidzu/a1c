@@ -1,5 +1,6 @@
 package com.a1c.app.feature.log
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -7,6 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,14 +28,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.a1c.app.data.DoseLogResult
 import com.a1c.app.data.HealthConnectState
 import com.a1c.app.data.LogData
 import com.a1c.app.data.api.ActivityDto
+import com.a1c.app.data.api.DoseDto
 import com.a1c.app.data.api.GlucoseReadingDto
 import com.a1c.app.data.api.NutritionDto
 import com.a1c.app.ui.theme.Accent
 import com.a1c.app.ui.theme.AccentDim
+import com.a1c.app.ui.theme.Exercise
+import com.a1c.app.ui.theme.Food
+import com.a1c.app.ui.theme.Glucose
+import com.a1c.app.ui.theme.InsulinFast
+import com.a1c.app.ui.theme.InsulinOnBoard
+import com.a1c.app.ui.theme.InsulinSlow
 import com.a1c.app.ui.theme.OnSurfaceDim
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -93,89 +105,200 @@ fun LogScreen(
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text(
-            text = timeFormat.format(now),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-
-        data.settings?.let { settings ->
-            val general = listOfNotNull(
-                settings.lastA1c?.let { "A1C %.1f".format(it) },
-                settings.weightKg?.let { "%.1f kg".format(it) },
-            ).joinToString("  ·  ")
-            if (general.isNotEmpty()) {
+        // Row 1 — tiny, dimmed context. Time on the left, A1C:Total on the
+        // right. Weight is gone from the UI (still in the database/API).
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = timeFormat.format(now),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            data.settings?.a1cTotal?.let {
                 Text(
-                    text = general,
+                    text = "A1C:Total %.1f".format(it),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
 
-        CurrentGlucoseLine(glucose = data.glucose)
+        Spacer(Modifier.height(14.dp))
 
-        Spacer(Modifier.height(16.dp))
-
-        // Units field
-        OutlinedTextField(
-            value = unitsText,
-            onValueChange = { value -> if (value.all { it.isDigit() }) unitsText = value.take(3) },
-            label = { Text("Units:") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
+        // Row 2 — one card per metric, each in its metric color
+        // (docs/design-system.md): current glucose, last insulin, and
+        // rapid insulin on board (NovoRapid, 4 h linear decay).
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            MetricCard(
+                label = "Glucose",
+                color = Glucose,
+                modifier = Modifier.weight(1f),
+            ) {
+                val latest = data.glucose.lastOrNull()
+                if (latest == null) {
+                    Text("—", style = MaterialTheme.typography.titleLarge, color = Glucose)
+                    Text("no CGM", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    val age = latest.ageMinutes(now)
+                    val stale = age < 0 || age > 30
+                    val arrow = directionArrow(latest.direction)
+                    Text(
+                        text = "%.1f".format(latest.mmolL ?: latest.sgv / 18.0),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else Glucose,
+                    )
+                    Text(
+                        text = buildString {
+                            append("mmol/L")
+                            if (arrow.isNotEmpty()) append(" $arrow")
+                            when {
+                                age < 0 -> {}
+                                age < 1 -> append(" · now")
+                                age < 60 -> append(" · ${age}m")
+                                else -> append(" · ${age / 60}h")
+                            }
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-        Spacer(Modifier.height(12.dp))
+            val lastDose = data.doses.lastOrNull()
+            MetricCard(
+                label = "Last insulin",
+                color = if (lastDose?.kind == "slow") InsulinSlow else InsulinFast,
+                modifier = Modifier.weight(1f),
+            ) {
+                if (lastDose == null) {
+                    Text("—", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("none yet", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    val kindName = if (lastDose.kind == "slow") data.settings?.slowName ?: "Slow" else data.settings?.fastName ?: "Fast"
+                    Text(
+                        text = "${lastDose.units} u",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (lastDose.kind == "slow") InsulinSlow else InsulinFast,
+                    )
+                    Text(
+                        text = "$kindName · ${timeAgoShort(lastDose, now)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
 
-        // Fast / Slow single choice
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            val fastLabel = data.settings?.fastName ?: "Fast"
-            val slowLabel = data.settings?.slowName ?: "Slow"
-            ChoiceChip(selected = kind == "fast", label = fastLabel, modifier = Modifier.weight(1f)) { kind = "fast" }
-            ChoiceChip(selected = kind == "slow", label = slowLabel, modifier = Modifier.weight(1f)) { kind = "slow" }
+            MetricCard(
+                label = "On board",
+                color = InsulinOnBoard,
+                modifier = Modifier.weight(1f),
+            ) {
+                val iob = insulinOnBoard(data.doses, now)
+                Text(
+                    text = "%.1f u".format(iob),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (iob > 0) InsulinOnBoard else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "4 h decay",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
 
-        Button(
-            onClick = {
-                val selectedKind = kind
-                val unitsValue = units
-                if (selectedKind != null && unitsValue != null && unitsValue > 0) {
-                    // Instant feedback: clear the form right away (the dose is
-                    // persisted locally by the repository before any network
-                    // round-trip), then confirm via the callback.
-                    unitsText = ""
-                    kind = null
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onLogDose(unitsValue, selectedKind) { result ->
-                        when (result) {
-                            is DoseLogResult.Success -> {
-                                messageIsError = false
-                                message = "✓ Saved $unitsValue u $selectedKind"
-                            }
-                            is DoseLogResult.Offline -> {
-                                messageIsError = false
-                                message = "✓ Saved offline — will sync when online"
-                            }
-                            is DoseLogResult.Failure -> {
-                                messageIsError = true
-                                message = result.message
+        // Row 3 — the entry controls, all on one line: units field (two
+        // digits is the whole use case), N (NovoRapid), R (Ryzodeg), save.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = unitsText,
+                onValueChange = { value -> if (value.all { it.isDigit() }) unitsText = value.take(2) },
+                label = { Text("u") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                ),
+                modifier = Modifier
+                    .width(96.dp)
+                    .heightIn(min = 64.dp)
+                    // The visible label is the compact unit suffix; the
+                    // accessible name carries the meaning.
+                    .semantics { contentDescription = "Insulin units" },
+            )
+            ChoiceChip(
+                selected = kind == "fast",
+                label = "N",
+                // Compact pen-letter on screen; the configured insulin name
+                // is what assistive tech announces (slice-3 contract).
+                description = data.settings?.fastName ?: "Fast",
+                color = InsulinFast,
+                modifier = Modifier.weight(1f),
+            ) { kind = "fast" }
+            ChoiceChip(
+                selected = kind == "slow",
+                label = "R",
+                description = data.settings?.slowName ?: "Slow",
+                color = InsulinSlow,
+                modifier = Modifier.weight(1f),
+            ) { kind = "slow" }
+            FilledIconButton(
+                onClick = {
+                    val selectedKind = kind
+                    val unitsValue = units
+                    if (selectedKind != null && unitsValue != null && unitsValue > 0) {
+                        // Instant feedback: clear the form right away (the dose is
+                        // persisted locally by the repository before any network
+                        // round-trip), then confirm via the callback.
+                        unitsText = ""
+                        kind = null
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLogDose(unitsValue, selectedKind) { result ->
+                            when (result) {
+                                is DoseLogResult.Success -> {
+                                    messageIsError = false
+                                    message = "✓ Saved $unitsValue u $selectedKind"
+                                }
+                                is DoseLogResult.Offline -> {
+                                    messageIsError = false
+                                    message = "✓ Saved offline — will sync when online"
+                                }
+                                is DoseLogResult.Failure -> {
+                                    messageIsError = true
+                                    message = result.message
+                                }
                             }
                         }
                     }
-                }
-            },
-            enabled = canSave,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(12.dp),
-        ) {
-            Text("Save dose", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                },
+                enabled = canSave,
+                modifier = Modifier.size(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = Accent,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            ) {
+                Icon(Icons.Filled.Check, contentDescription = "Save dose")
+            }
         }
 
         message?.let {
@@ -226,6 +349,7 @@ fun LogScreen(
 
         GlucoseCard(
             glucose = data.glucose,
+            doses = data.doses,
             days = data.days,
             activities = data.activities,
             nutrition = data.nutrition,
@@ -263,7 +387,7 @@ fun LogScreen(
                 ) {
                     Text(
                         text = kindLabel,
-                        color = if (dose.kind == "fast") Accent else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (dose.kind == "fast") InsulinFast else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                     )
                     Text("${dose.units} u", color = MaterialTheme.colorScheme.onBackground)
@@ -278,6 +402,65 @@ fun LogScreen(
         Spacer(Modifier.height(24.dp))
     }
 }
+
+/** One metric card: colored label on top, big value, dimmed detail. */
+@Composable
+private fun MetricCard(
+    label: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, color.copy(alpha = 0.45f)),
+        modifier = modifier,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                maxLines = 1,
+            )
+            Spacer(Modifier.height(4.dp))
+            content()
+        }
+    }
+}
+
+/** Last dose's age in short form ("12m", "3h"). */
+private fun timeAgoShort(dose: DoseDto, now: Instant): String {
+    val t = runCatching { Instant.parse(dose.takenAt ?: dose.createdAt) }.getOrNull()
+        ?: return ""
+    val minutes = (now.toEpochMilli() - t.toEpochMilli()) / 60_000
+    return when {
+        minutes < 1 -> "now"
+        minutes < 60 -> "${minutes}m"
+        else -> "${minutes / 60}h"
+    }
+}
+
+/**
+ * Rapid insulin on board (NovoRapid / insulin aspart): linear decay over a
+ * 4 h duration of insulin action. EMA monograph: onset 10–20 min, peak
+ * 1–3 h, duration 3–5 h — 4 h is the standard clinical approximation.
+ * Only fast (N) doses count for now; Ryzodeg IOB comes later.
+ */
+private const val RAPID_DIA_HOURS = 4.0
+
+private fun insulinOnBoard(doses: List<DoseDto>, now: Instant): Double =
+    doses.sumOf { dose ->
+        if (dose.kind != "fast") return@sumOf 0.0
+        val t = runCatching { Instant.parse(dose.takenAt ?: dose.createdAt) }.getOrNull()
+            ?: return@sumOf 0.0
+        val elapsedH = (now.toEpochMilli() - t.toEpochMilli()) / 3_600_000.0
+        if (elapsedH < 0 || elapsedH >= RAPID_DIA_HOURS) 0.0
+        else dose.units * (1.0 - elapsedH / RAPID_DIA_HOURS)
+    }
 
 @Composable
 private fun EmptyState(text: String) {
@@ -357,49 +540,14 @@ private fun directionArrow(direction: String?): String = when (direction) {
     else -> ""
 }
 
-/** Nightscout direction names → arrows. */
-
 private fun GlucoseReadingDto.ageMinutes(now: Instant): Long =
     runCatching { (now.toEpochMilli() - Instant.parse(time).toEpochMilli()) / 60_000 }
         .getOrDefault(-1)
 
 @Composable
-private fun CurrentGlucoseLine(glucose: List<GlucoseReadingDto>, now: Instant = Instant.now()) {
-    val latest = glucose.lastOrNull() ?: return
-    val age = latest.ageMinutes(now)
-    val stale = age < 0 || age > 30
-
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
-        Text(
-            text = "%.1f mmol/L".format(latest.mmolL ?: latest.sgv / 18.0),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = if (stale) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onBackground,
-        )
-        val arrow = directionArrow(latest.direction)
-        if (arrow.isNotEmpty()) {
-            Text(
-                text = " $arrow",
-                style = MaterialTheme.typography.titleLarge,
-                color = Accent,
-            )
-        }
-        Text(
-            text = when {
-                age < 0 -> ""
-                age < 1 -> " · now"
-                age < 60 -> " · ${age} min ago"
-                else -> " · ${age / 60} h ago"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
 private fun GlucoseCard(
     glucose: List<GlucoseReadingDto>,
+    doses: List<DoseDto>,
     days: List<com.a1c.app.data.api.DayDto>,
     activities: List<ActivityDto>,
     nutrition: List<NutritionDto>,
@@ -425,106 +573,125 @@ private fun GlucoseCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                Row {
-                    DayBars(
-                        days = days,
-                        healthConnect = healthConnect,
-                        healthRead = healthRead,
-                        onRequestHealthPermissions = onRequestHealthPermissions,
-                        modifier = Modifier.width(64.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    GlucoseChart(glucose, activities, nutrition, modifier = Modifier.weight(1f))
-                }
+                GlucoseChart(glucose, doses, activities, nutrition, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(clockLabel.format(Instant.parse(glucose.first().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                    Text("target 3.9–10", color = AccentDim, fontSize = 11.sp)
+                    Text("target 3.9–10", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     Text(clockLabel.format(Instant.parse(glucose.last().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    LegendDot(Accent, "glucose")
-                    LegendDot(Color.White.copy(alpha = 0.85f), "food")
-                    LegendDot(AccentDim.copy(alpha = 0.35f), "exercise")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    LegendDot(Glucose, "glucose")
+                    LegendDot(Food, "food")
+                    LegendDot(Exercise, "exercise")
+                    LegendDot(InsulinFast, "fast ▲")
+                    LegendDot(InsulinSlow, "slow ▼")
                 }
             }
+            Spacer(Modifier.height(14.dp))
+            TodayVsStandard(days = days)
+            // Health Connect entry point + slice-6 diagnostic, kept compact.
+            when (healthConnect) {
+                is HealthConnectState.NeedsPermissions -> TextButton(
+                    onClick = onRequestHealthPermissions,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.height(28.dp),
+                ) {
+                    Text("Connect Health", fontSize = 12.sp, color = Accent)
+                }
+                is HealthConnectState.Unavailable, is HealthConnectState.UpdateRequired ->
+                    Text(
+                        "Health Connect unavailable",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                else -> {}
+            }
+            // Temporary slice-6 diagnostic: what the reader saw this refresh.
+            val readSummary = healthRead?.summary ?: "no read yet"
+            Text(
+                text = readSummary,
+                fontSize = 9.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+            )
         }
     }
 }
 
 /**
- * Three gas-gauge mini bars for today's totals (insulin / carbs / exercise),
- * each scaled to its own 14-day max. Health Connect missing → waiting state
- * here only; dose logging is never affected.
+ * Today's metrics, each measured against its standard (docs/design-system.md):
+ * bar in the metric's own color, value vs goal. Standards: 2 000 kcal/day,
+ * 20 min exercise; insulin has no universal target, so it is measured
+ * against the 14-day average. Over/under is carried by the number, never
+ * by recoloring the bar red.
  */
 @Composable
-private fun DayBars(
-    days: List<com.a1c.app.data.api.DayDto>,
-    healthConnect: HealthConnectState,
-    healthRead: com.a1c.app.data.HealthReadResult?,
-    onRequestHealthPermissions: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun TodayVsStandard(days: List<com.a1c.app.data.api.DayDto>) {
     val today = LocalDate.now().toString()
     val todayRow = days.lastOrNull { it.date == today }
     val window = days.takeLast(14)
-    val maxInsulin = window.maxOfOrNull { it.totalUnits }?.coerceAtLeast(1) ?: 1
-    val maxCarbs = window.maxOfOrNull { it.carbsG }?.coerceAtLeast(1) ?: 1
-    val maxExercise = window.maxOfOrNull { it.exerciseMin }?.coerceAtLeast(1) ?: 1
+    val avgFast = window.takeIf { it.isNotEmpty() }?.sumOf { it.fastUnits }?.toFloat()?.div(window.size) ?: 0f
+    val avgSlow = window.takeIf { it.isNotEmpty() }?.sumOf { it.slowUnits }?.toFloat()?.div(window.size) ?: 0f
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        GaugeBar(
-            label = "${todayRow?.totalUnits ?: 0} u",
-            fraction = (todayRow?.totalUnits ?: 0).toFloat() / maxInsulin,
-            color = Accent,
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        MetricRow(
+            label = "Kcal",
+            valueText = "${todayRow?.caloriesKcal ?: 0} / 2 000 kcal",
+            fraction = (todayRow?.caloriesKcal ?: 0) / 2000f,
+            color = Food,
         )
-        GaugeBar(
-            label = "${todayRow?.carbsG ?: 0} g",
-            fraction = (todayRow?.carbsG ?: 0).toFloat() / maxCarbs,
-            color = Color.White.copy(alpha = 0.85f),
+        MetricRow(
+            label = "Exercise",
+            valueText = "${todayRow?.exerciseMin ?: 0} / 20 min",
+            fraction = (todayRow?.exerciseMin ?: 0) / 20f,
+            color = Exercise,
         )
-        GaugeBar(
-            label = "${todayRow?.exerciseMin ?: 0} m",
-            fraction = (todayRow?.exerciseMin ?: 0).toFloat() / maxExercise,
-            color = AccentDim.copy(alpha = 0.6f),
+        MetricRow(
+            label = "Fast",
+            valueText = "${todayRow?.fastUnits ?: 0} u · avg %.1f".format(avgFast),
+            fraction = if (avgFast > 0) (todayRow?.fastUnits ?: 0) / avgFast else 0f,
+            color = InsulinFast,
         )
-        when (healthConnect) {
-            is HealthConnectState.NeedsPermissions -> TextButton(
-                onClick = onRequestHealthPermissions,
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                modifier = Modifier.height(24.dp),
-            ) {
-                Text("Connect", fontSize = 11.sp, color = Accent)
-            }
-            is HealthConnectState.Unavailable, is HealthConnectState.UpdateRequired ->
-                Text(
-                    "no Health",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            else -> {}
-        }
-        // Temporary slice-6 diagnostic: what the reader saw this refresh.
-        val readSummary = healthRead?.summary ?: "no read yet"
-        Text(
-            text = readSummary,
-            fontSize = 9.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
+        MetricRow(
+            label = "Slow",
+            valueText = "${todayRow?.slowUnits ?: 0} u · avg %.1f".format(avgSlow),
+            fraction = if (avgSlow > 0) (todayRow?.slowUnits ?: 0) / avgSlow else 0f,
+            color = InsulinSlow,
+        )
+        // Carbs standard: 45% of the 2 000 kcal goal = 225 g/day (ADA
+        // macro pattern for an adult male at this calorie target).
+        MetricRow(
+            label = "Carbs",
+            valueText = "${todayRow?.carbsG ?: 0} / 225 g",
+            fraction = (todayRow?.carbsG ?: 0) / 225f,
+            color = Food,
         )
     }
 }
 
-/** One horizontal mini bar with its value above it. */
+/** One metric row: fixed-width label, bar in the metric color, value text. */
 @Composable
-private fun GaugeBar(label: String, fraction: Float, color: Color) {
-    Column {
-        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(3.dp))
+private fun MetricRow(label: String, valueText: String, fraction: Float, color: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(56.dp),
+        )
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .weight(1f)
                 .height(6.dp)
                 .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp)),
         ) {
@@ -535,12 +702,20 @@ private fun GaugeBar(label: String, fraction: Float, color: Color) {
                     .background(color, RoundedCornerShape(3.dp)),
             )
         }
+        Text(
+            text = valueText,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.width(110.dp),
+            textAlign = TextAlign.End,
+        )
     }
 }
 
 @Composable
 private fun GlucoseChart(
     readings: List<GlucoseReadingDto>,
+    doses: List<DoseDto>,
     activities: List<ActivityDto>,
     nutrition: List<NutritionDto>,
     modifier: Modifier = Modifier,
@@ -554,7 +729,6 @@ private fun GlucoseChart(
     val hi = (mmol.max() + 0.5).coerceAtLeast(lo + 2.0)
     val bandTop = 10.0.coerceAtMost(hi)
     val bandBottom = 3.9.coerceAtLeast(lo)
-    val lineColor = Accent
 
     // Context markers, clipped to the visible window.
     val exerciseBands = activities.mapNotNull {
@@ -567,6 +741,14 @@ private fun GlucoseChart(
     val foodDots = nutrition.mapNotNull {
         val t = runCatching { Instant.parse(it.takenAt).toEpochMilli() }.getOrNull() ?: return@mapNotNull null
         if (t < t0 || t > t1) null else (t - t0).toFloat() / span
+    }
+    // Doses in the visible window, split by kind. Effective time is the
+    // real injection time (taken_at) when present, else creation time.
+    val doseMarkers = doses.mapNotNull { dose ->
+        val t = runCatching {
+            Instant.parse(dose.takenAt ?: dose.createdAt).toEpochMilli()
+        }.getOrNull() ?: return@mapNotNull null
+        if (t < t0 || t > t1) null else (t - t0).toFloat() / span to dose.kind
     }
 
     Canvas(modifier = modifier.fillMaxWidth().height(140.dp)) {
@@ -581,7 +763,7 @@ private fun GlucoseChart(
         // their glucose effect lingers — a point would lie about that).
         exerciseBands.forEach { (x0, x1) ->
             drawRect(
-                color = AccentDim.copy(alpha = 0.18f),
+                color = Exercise.copy(alpha = 0.18f),
                 topLeft = Offset(x(x0), 0f),
                 size = Size(x(x1) - x(x0), size.height),
             )
@@ -589,7 +771,7 @@ private fun GlucoseChart(
 
         // Target band 3.9–10 mmol/L
         drawRoundRect(
-            color = AccentDim.copy(alpha = 0.15f),
+            color = Glucose.copy(alpha = 0.10f),
             topLeft = Offset(0f, y(bandTop)),
             size = Size(size.width, y(bandBottom) - y(bandTop)),
             cornerRadius = CornerRadius(6f, 6f),
@@ -602,22 +784,48 @@ private fun GlucoseChart(
                 if (i == 0) moveTo(px, y(mmol[i])) else lineTo(px, y(mmol[i]))
             }
         }
-        drawPath(path, color = lineColor, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+        drawPath(path, color = Glucose, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
 
         // Food dots on the curve at intake time (linear between readings).
         foodDots.forEach { frac ->
             val target = t0 + (frac * span).toLong()
             val glucoseY = interpolateY(times, mmol, target)?.let { y(it) } ?: return@forEach
             drawCircle(
-                color = Color.White.copy(alpha = 0.9f),
+                color = Food,
                 radius = 3.dp.toPx(),
                 center = Offset(x(frac), glucoseY),
             )
         }
 
+        // Dose markers: fast ▲ pinned to the top edge, slow ▼ to the bottom
+        // edge — position carries the kind, color confirms it.
+        doseMarkers.forEach { (frac, kind) ->
+            val cx = x(frac)
+            val r = 4.dp.toPx()
+            if (kind == "fast") {
+                val top = y(hi - 0.05) + r
+                val tri = Path().apply {
+                    moveTo(cx, top - r)
+                    lineTo(cx - r, top + r)
+                    lineTo(cx + r, top + r)
+                    close()
+                }
+                drawPath(tri, color = InsulinFast)
+            } else {
+                val bottom = y(lo + 0.05) - r
+                val tri = Path().apply {
+                    moveTo(cx, bottom + r)
+                    lineTo(cx - r, bottom - r)
+                    lineTo(cx + r, bottom - r)
+                    close()
+                }
+                drawPath(tri, color = InsulinSlow)
+            }
+        }
+
         // Latest point
         val lastX = ((times.last() - t0).toFloat() / span) * size.width
-        drawCircle(color = lineColor, radius = 4.dp.toPx(), center = Offset(lastX, y(mmol.last())))
+        drawCircle(color = Glucose, radius = 4.dp.toPx(), center = Offset(lastX, y(mmol.last())))
     }
 }
 
@@ -637,12 +845,24 @@ private fun interpolateY(times: List<Long>, mmol: List<Double>, target: Long): D
 }
 
 @Composable
-private fun ChoiceChip(selected: Boolean, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ChoiceChip(
+    selected: Boolean,
+    label: String,
+    modifier: Modifier = Modifier,
+    color: Color = Accent,
+    description: String? = null,
+    onClick: () -> Unit,
+) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(12.dp),
-        color = if (selected) Accent else MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier.height(48.dp),
+        color = if (selected) color else MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier
+            .height(52.dp)
+            .then(
+                if (description != null) Modifier.semantics { contentDescription = description }
+                else Modifier
+            ),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -676,7 +896,6 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, f
             } else {
                 val max = maxOf(recent.maxOf { it.fastUnits }, recent.maxOf { it.slowUnits }).coerceAtLeast(1)
                 val textMeasurer = rememberTextMeasurer()
-                val slowBarColor = AccentDim.copy(alpha = 0.40f)
                 Canvas(modifier = Modifier.fillMaxWidth().height(150.dp)) {
                     val slot = size.width / recent.size
                     val slowBarWidth = slot * 0.72f
@@ -687,7 +906,7 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, f
                         val slowX = index * slot + (slot - slowBarWidth) / 2
                         if (day.slowUnits > 0) {
                             drawRoundRect(
-                                color = slowBarColor,
+                                color = InsulinSlow,
                                 topLeft = Offset(slowX, size.height - slowHeight),
                                 size = Size(slowBarWidth, slowHeight),
                                 cornerRadius = CornerRadius(7f, 7f),
@@ -697,14 +916,14 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, f
                         val fastX = index * slot + (slot - fastBarWidth) / 2
                         if (day.fastUnits > 0) {
                             drawRoundRect(
-                                color = Accent,
+                                color = InsulinFast,
                                 topLeft = Offset(fastX, size.height - fastHeight),
                                 size = Size(fastBarWidth, fastHeight),
                                 cornerRadius = CornerRadius(7f, 7f),
                             )
                             val label = textMeasurer.measure(
                                 day.fastUnits.toString(),
-                                style = TextStyle(color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+                                style = TextStyle(color = InsulinFast, fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
                             )
                             drawText(
                                 textLayoutResult = label,
@@ -720,8 +939,8 @@ private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, f
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    LegendDot(Accent, "Fast · $fastName")
-                    LegendDot(slowBarColor, "Slow · $slowName")
+                    LegendDot(InsulinFast, "Fast · $fastName")
+                    LegendDot(InsulinSlow, "Slow · $slowName")
                 }
             }
         }
