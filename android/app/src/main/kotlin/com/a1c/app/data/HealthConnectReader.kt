@@ -23,8 +23,12 @@ sealed interface HealthConnectState {
     /** Provider present but needs a Play Store update first. */
     data object UpdateRequired : HealthConnectState
 
-    /** Ready, but the user hasn't granted read access yet. */
-    data object NeedsPermissions : HealthConnectState
+    /**
+     * Ready, but read access is incomplete. Carries human labels for the
+     * missing scopes so the UI can say what to grant — a bare "needs
+     * permissions" leaves the user tapping a dead button.
+     */
+    data class NeedsPermissions(val missing: List<String>) : HealthConnectState
 
     /** Ready and readable. */
     data object Ready : HealthConnectState
@@ -42,13 +46,7 @@ data class HealthUploads(
 data class HealthReadResult(
     val uploads: HealthUploads = HealthUploads(),
     val error: String? = null,
-) {
-    val summary: String
-        get() = when {
-            error != null -> error
-            else -> "${uploads.activities.size} sessions · ${uploads.nutrition.size} meals"
-        }
-}
+)
 
 /**
  * Read-only Health Connect pipe (ADR-003): reads exercise sessions, active
@@ -61,8 +59,15 @@ class HealthConnectReader(private val context: Context) {
     suspend fun status(): HealthConnectState = when (HealthConnectClient.getSdkStatus(context)) {
         HealthConnectClient.SDK_UNAVAILABLE -> HealthConnectState.Unavailable
         HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> HealthConnectState.UpdateRequired
-        else -> if (granted() == PERMISSIONS.toSet()) HealthConnectState.Ready
-        else HealthConnectState.NeedsPermissions
+        else -> {
+            val granted = granted()
+            val missing = PERMISSIONS.filterNot { it in granted }
+            if (missing.isEmpty()) {
+                HealthConnectState.Ready
+            } else {
+                HealthConnectState.NeedsPermissions(missing.map(::permissionLabel))
+            }
+        }
     }
 
     /**
@@ -148,6 +153,15 @@ class HealthConnectReader(private val context: Context) {
         HealthConnectClient.getOrCreate(context).permissionController.getGrantedPermissions()
     } catch (_: Exception) {
         emptySet()
+    }
+
+    /** Health permission string → the phrase a person would use. */
+    private fun permissionLabel(permission: String): String = when {
+        permission.endsWith("READ_EXERCISE") -> "exercise"
+        permission.endsWith("READ_TOTAL_CALORIES_BURNED") -> "calories"
+        permission.endsWith("READ_HEART_RATE") -> "heart rate"
+        permission.endsWith("READ_NUTRITION") -> "nutrition"
+        else -> permission.substringAfterLast('.')
     }
 
     private fun mealType(type: Int): String? = when (type) {

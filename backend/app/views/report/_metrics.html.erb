@@ -3,10 +3,10 @@
   <div class="sub">
     <%= @report.start_date.strftime("%b %-d, %Y") %> – <%= @report.end_date.strftime("%b %-d, %Y") %>
     · window: <%= @report.days %> days
-    · <%= link_to "7 days", report_url(days: 7, only_path: true), class: "daylink" %>
-    · <%= link_to "14 days", report_url(days: 14, only_path: true), class: "daylink" %>
-    · <%= link_to "30 days", report_url(days: 30, only_path: true), class: "daylink" %>
-    · <%= link_to "90 days", report_url(days: 90, only_path: true), class: "daylink" %>
+    · <%= link_to "7 days", report_link(days: 7), class: "daylink" %>
+    · <%= link_to "14 days", report_link(days: 14), class: "daylink" %>
+    · <%= link_to "30 days", report_link(days: 30), class: "daylink" %>
+    · <%= link_to "90 days", report_link(days: 90), class: "daylink" %>
   </div>
 </header>
 

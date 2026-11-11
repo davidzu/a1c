@@ -14,7 +14,7 @@ import retrofit2.http.Query
 
 interface A1CApi {
     @GET("doses")
-    suspend fun doses(): DosesIndexDto
+    suspend fun doses(@Query("days") days: Int = 10): DosesIndexDto
 
     @POST("doses")
     suspend fun createDose(@Body dose: NewDoseDto): DoseResponseDto

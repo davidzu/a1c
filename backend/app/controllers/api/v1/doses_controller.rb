@@ -1,10 +1,15 @@
 module Api
   module V1
     class DosesController < ApplicationController
+      # Upper bound for the graph window; the default comes from deploy config
+      # (DOSES_HISTORY_DAYS) so the payload never grows with account age.
+      MAX_DAYS = 366
+      DEFAULT_DAYS = 10
+
       def index
         render json: {
           doses: Dose.recent.reverse.map { |dose| dose_payload(dose) },
-          daily_totals: Dose.daily_totals
+          daily_totals: Dose.daily_totals(window_days)
         }
       end
 
@@ -32,6 +37,15 @@ module Api
       end
 
       private
+
+      # `?days=N` overrides; otherwise the deploy-time default applies. Read at
+      # request time (not as a constant) so tests and config changes take hold
+      # without a restart.
+      def window_days
+        raw = params[:days].presence
+        days = raw ? raw.to_i : ENV.fetch("DOSES_HISTORY_DAYS", DEFAULT_DAYS).to_i
+        [[days, 1].max, MAX_DAYS].min
+      end
 
       def dose_params
         params.permit(:units, :kind, :taken_at, :client_id)

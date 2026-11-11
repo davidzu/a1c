@@ -17,12 +17,15 @@ class Dose < ApplicationRecord
 
   # One row per local day (per the configured timezone), with fast/slow splits.
   # Day boundary is midnight in Setting.instance.timezone — never UTC.
-  def self.daily_totals
+  # `days` bounds the window (today backwards); nil keeps the old all-history
+  # behaviour for callers that need it.
+  def self.daily_totals(days = nil)
     zone = Setting.instance.timezone
     fast = Dose.kinds.fetch("fast")
     slow = Dose.kinds.fetch("slow")
     day_sql = local_day_sql(zone)
-    Dose
+    scope = days ? in_local_days(zone, days) : all
+    scope
       .group(Arel.sql(day_sql))
       .order(Arel.sql(day_sql))
       .pluck(

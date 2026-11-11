@@ -1,6 +1,9 @@
 package com.a1c.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -21,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -55,6 +59,7 @@ private sealed class Destination(val route: String, val label: String) {
 @Composable
 fun A1CApp(container: AppContainer) {
     val navController = rememberNavController()
+    val context = LocalContext.current
     val logViewModel: LogViewModel = viewModel(factory = SimpleFactory { LogViewModel(container.repository) })
     val configViewModel: ConfigViewModel = viewModel(factory = SimpleFactory { ConfigViewModel(container.repository) })
     val data by logViewModel.log.collectAsState()
@@ -113,6 +118,14 @@ fun A1CApp(container: AppContainer) {
                     onRefresh = logViewModel::refresh,
                     onRequestHealthPermissions = {
                         healthPermissionsLauncher.launch(com.a1c.app.data.HealthConnectReader.PERMISSIONS.toSet())
+                    },
+                    onOpenHealthSettings = {
+                        context.startActivity(
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", context.packageName, null),
+                            )
+                        )
                     },
                 )
             }

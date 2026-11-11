@@ -1,6 +1,13 @@
 # Server-side SVG builders for the doctor report (slice 7).
 # Pure string builders — no JS, printable, inline in the ERB.
 module ReportHelper
+  # Report links must carry the access token when REPORT_TOKEN is configured;
+  # otherwise the next click 404s.
+  def report_link(days: nil, day: nil)
+    query = { days: days, day: day, token: params[:token].presence }.compact
+    report_path(query)
+  end
+
   # Y scale factory for mg/dL charts: maps mg/dL → pixel y.
   def self.y_scale(height, top_pad, bottom_pad, lo = 0, hi = 350)
     scale = (height - top_pad - bottom_pad).to_f / (hi - lo)

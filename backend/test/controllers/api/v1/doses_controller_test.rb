@@ -50,13 +50,13 @@ module Api
       end
 
       test "index returns recent doses and daily totals" do
-        travel_to Time.zone.parse("2026-09-22 09:00:00") do
-          Dose.create!(units: 5, kind: :fast)
-          Dose.create!(units: 10, kind: :slow)
-        end
-        travel_to Time.zone.parse("2026-09-23 21:00:00") do
-          Dose.create!(units: 7, kind: :fast)
-        end
+        zone = Setting.instance.timezone
+        yesterday = (Time.current.in_time_zone(zone).to_date - 1).in_time_zone(zone)
+        today = Time.current.in_time_zone(zone).to_date.in_time_zone(zone)
+
+        Dose.create!(units: 5, kind: :fast, taken_at: yesterday.change(hour: 9))
+        Dose.create!(units: 10, kind: :slow, taken_at: yesterday.change(hour: 10))
+        Dose.create!(units: 7, kind: :fast, taken_at: today.change(hour: 21))
 
         get api_v1_doses_url, as: :json
         assert_response :ok
@@ -64,8 +64,8 @@ module Api
         body = JSON.parse(response.body)
         totals = body["daily_totals"]
         assert_equal 2, totals.size
-        assert_equal({ "date" => "2026-09-22", "fast_units" => 5, "slow_units" => 10, "total_units" => 15 }, totals.first)
-        assert_equal({ "date" => "2026-09-23", "fast_units" => 7, "slow_units" => 0, "total_units" => 7 }, totals.last)
+        assert_equal({ "date" => yesterday.to_date.to_s, "fast_units" => 5, "slow_units" => 10, "total_units" => 15 }, totals.first)
+        assert_equal({ "date" => today.to_date.to_s, "fast_units" => 7, "slow_units" => 0, "total_units" => 7 }, totals.last)
 
         doses = body["doses"]
         assert_equal 3, doses.size
@@ -89,19 +89,18 @@ module Api
       test "daily totals bucket by local day, not UTC (UTC-6 regression)" do
         # 21:00 Monterrey = 03:00 UTC next day. Must count as the SAME local
         # day as a dose logged at noon Monterrey.
-        travel_to Time.zone.parse("2026-09-22 12:00:00 -06:00") do
-          Dose.create!(units: 4, kind: :fast)
-        end
-        travel_to Time.zone.parse("2026-09-22 21:00:00 -06:00") do
-          Dose.create!(units: 3, kind: :slow)
-        end
+        zone = Setting.instance.timezone
+        today = Time.current.in_time_zone(zone).to_date.in_time_zone(zone)
+
+        Dose.create!(units: 4, kind: :fast, taken_at: today.change(hour: 12))
+        Dose.create!(units: 3, kind: :slow, taken_at: today.change(hour: 21))
 
         get api_v1_doses_url, as: :json
         assert_response :ok
 
         totals = JSON.parse(response.body)["daily_totals"]
         assert_equal 1, totals.size, "evening Monterrey dose must not spill into the next UTC day"
-        assert_equal({ "date" => "2026-09-22", "fast_units" => 4, "slow_units" => 3, "total_units" => 7 }, totals.first)
+        assert_equal({ "date" => today.to_date.to_s, "fast_units" => 4, "slow_units" => 3, "total_units" => 7 }, totals.first)
       end
 
       test "accepts taken_at and client_id, echoes them back" do
@@ -132,11 +131,52 @@ module Api
 
       test "daily totals use taken_at when present" do
         # Logged today (server time) but injected yesterday evening, local.
-        Dose.create!(units: 5, kind: :fast, taken_at: Time.zone.parse("2026-09-21 20:00:00 -06:00"))
+        zone = Setting.instance.timezone
+        yesterday = (Time.current.in_time_zone(zone).to_date - 1).in_time_zone(zone)
+        Dose.create!(units: 5, kind: :fast, taken_at: yesterday.change(hour: 20))
 
         get api_v1_doses_url, as: :json
         totals = JSON.parse(response.body)["daily_totals"]
-        assert_equal({ "date" => "2026-09-21", "fast_units" => 5, "slow_units" => 0, "total_units" => 5 }, totals.first)
+        assert_equal({ "date" => yesterday.to_date.to_s, "fast_units" => 5, "slow_units" => 0, "total_units" => 5 }, totals.first)
+      end
+
+      test "daily totals default to the configured 10-day window" do
+        # 30 days of history, but the graph only needs the recent window.
+        30.downto(0) { |i| Dose.create!(units: 1, kind: :fast, taken_at: i.days.ago) }
+
+        get api_v1_doses_url, as: :json
+        totals = JSON.parse(response.body)["daily_totals"]
+
+        assert_equal 10, totals.size
+        assert_equal Time.current.in_time_zone(Setting.instance.timezone).to_date.to_s, totals.last["date"]
+      end
+
+      test "daily totals accept a days override and clamp it" do
+        30.downto(0) { |i| Dose.create!(units: 1, kind: :fast, taken_at: i.days.ago) }
+
+        get api_v1_doses_url(params: { days: 5 }), as: :json
+        assert_equal 5, JSON.parse(response.body)["daily_totals"].size
+
+        get api_v1_doses_url(params: { days: 0 }), as: :json
+        assert_equal 1, JSON.parse(response.body)["daily_totals"].size
+
+        # 31 calendar days exist; the 366-day cap cannot invent rows.
+        get api_v1_doses_url(params: { days: 9999 }), as: :json
+        assert_equal 31, JSON.parse(response.body)["daily_totals"].size
+      end
+
+      test "daily totals window is a deploy config parameter" do
+        ENV["DOSES_HISTORY_DAYS"] = "3"
+        30.downto(0) { |i| Dose.create!(units: 1, kind: :fast, taken_at: i.days.ago) }
+
+        get api_v1_doses_url, as: :json
+        assert_equal 3, JSON.parse(response.body)["daily_totals"].size
+
+        # Explicit query wins over the deploy default.
+        get api_v1_doses_url(params: { days: 7 }), as: :json
+        assert_equal 7, JSON.parse(response.body)["daily_totals"].size
+      ensure
+        ENV.delete("DOSES_HISTORY_DAYS")
       end
 
       test "taken_at must be a valid timestamp" do

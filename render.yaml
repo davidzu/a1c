@@ -31,6 +31,13 @@ services:
         value: "true"
       - key: WEB_CONCURRENCY
         value: "1"
+      # Daily-totals window for GET /api/v1/doses (the graph payload).
+      - key: DOSES_HISTORY_DAYS
+        value: "10"
+      # Optional shared secret for /report. Set in the dashboard to require
+      # /report?token=…; leave empty to keep the private-URL contract.
+      - key: REPORT_TOKEN
+        sync: false
 
 databases:
   - name: a1c-db

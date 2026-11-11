@@ -76,4 +76,47 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     assert_match "lab A1C", response.body
     assert_match "GMI trend", response.body
   end
+
+  test "marks the page noindex in headers and markup" do
+    get report_url
+
+    assert_response :success
+    assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
+    assert_match '<meta name="robots" content="noindex, nofollow">', response.body
+  end
+
+  test "requires REPORT_TOKEN when configured, and 404s without it" do
+    ENV["REPORT_TOKEN"] = "s3cret-token"
+
+    get report_url
+    assert_response :not_found
+
+    get report_url(params: { token: "wrong" })
+    assert_response :not_found
+
+    get report_url(params: { token: "s3cret-token" })
+    assert_response :success
+  ensure
+    ENV.delete("REPORT_TOKEN")
+  end
+
+  test "report links carry the token so navigation keeps working" do
+    ENV["REPORT_TOKEN"] = "s3cret-token"
+    zone = Setting.instance.timezone
+    today = Time.current.in_time_zone(zone).to_date
+    Dose.create!(units: 4, kind: :fast, taken_at: Time.current)
+
+    get report_url(params: { token: "s3cret-token" })
+    assert_response :success
+
+    assert_match "token=s3cret-token", response.body
+    assert_match "day=#{today}", response.body
+  ensure
+    ENV.delete("REPORT_TOKEN")
+  end
+
+  test "token is not required when REPORT_TOKEN is unset" do
+    get report_url
+    assert_response :success
+  end
 end

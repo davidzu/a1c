@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.a1c.app.data.DoseLogResult
+import com.a1c.app.data.HealthConnectReader
 import com.a1c.app.data.HealthConnectState
 import com.a1c.app.data.LogData
 import com.a1c.app.data.api.ActivityDto
@@ -68,6 +69,7 @@ fun LogScreen(
     onLogDose: (Int, String, (DoseLogResult) -> Unit) -> Unit,
     onRefresh: () -> Unit,
     onRequestHealthPermissions: () -> Unit = {},
+    onOpenHealthSettings: () -> Unit = {},
 ) {
     var unitsText by remember { mutableStateOf("") }
     var kind by remember { mutableStateOf<String?>(null) }
@@ -358,6 +360,7 @@ fun LogScreen(
             healthRead = data.healthRead,
             timezone = data.settings?.timezone,
             onRequestHealthPermissions = onRequestHealthPermissions,
+            onOpenHealthSettings = onOpenHealthSettings,
         )
 
         Spacer(Modifier.height(24.dp))
@@ -559,6 +562,7 @@ private fun GlucoseCard(
     healthRead: com.a1c.app.data.HealthReadResult?,
     timezone: String?,
     onRequestHealthPermissions: () -> Unit,
+    onOpenHealthSettings: () -> Unit,
 ) {
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -608,34 +612,80 @@ private fun GlucoseCard(
             }
             Spacer(Modifier.height(14.dp))
             TodayVsStandard(days = days, timezone = timezone)
-            // Health Connect entry point + slice-6 diagnostic, kept compact.
-            when (healthConnect) {
-                is HealthConnectState.NeedsPermissions -> TextButton(
-                    onClick = onRequestHealthPermissions,
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                    modifier = Modifier.height(28.dp),
-                ) {
-                    Text("Connect Health", fontSize = 12.sp, color = Accent)
-                }
-                is HealthConnectState.Unavailable, is HealthConnectState.UpdateRequired ->
-                    Text(
-                        "Health Connect unavailable",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                else -> {}
-            }
-            // Temporary slice-6 diagnostic: what the reader saw this refresh.
-            val readSummary = healthRead?.summary ?: "no read yet"
-            Text(
-                text = readSummary,
-                fontSize = 9.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+            HealthContextStatus(
+                state = healthConnect,
+                read = healthRead,
+                onRequestPermissions = onRequestHealthPermissions,
+                onOpenSettings = onOpenHealthSettings,
             )
         }
     }
 }
+
+/**
+ * One honest line about the Health Connect pipe, plus a way out when access
+ * is missing. Shows what the reader actually saw; failures say so instead of
+ * printing an exception at 9 sp.
+ */
+@Composable
+private fun HealthContextStatus(
+    state: HealthConnectState,
+    read: com.a1c.app.data.HealthReadResult?,
+    onRequestPermissions: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    when (state) {
+        is HealthConnectState.NeedsPermissions -> {
+            Text(
+                text = "Health Connect: needs access to ${state.missing.joinToString(", ")}",
+                fontSize = 11.sp,
+                color = dim,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(
+                    onClick = onRequestPermissions,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp),
+                ) { Text("Connect Health", fontSize = 12.sp, color = Accent) }
+                TextButton(
+                    onClick = onOpenSettings,
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                    modifier = Modifier.height(32.dp),
+                ) { Text("Open settings", fontSize = 12.sp, color = Accent) }
+            }
+        }
+
+        is HealthConnectState.Unavailable, is HealthConnectState.UpdateRequired -> Text(
+            text = "Health Connect unavailable on this phone — glucose and doses still work.",
+            fontSize = 11.sp,
+            color = dim,
+            modifier = Modifier.padding(top = 10.dp),
+        )
+
+        else -> {
+            val window = HealthConnectReader.READ_WINDOW_DAYS
+            val text = when {
+                read == null -> "Health Connect: checking…"
+                read.error != null -> "Health Connect: sync failed — will retry"
+                read.uploads.isEmpty -> "Health Connect: nothing in the last $window days"
+                else -> "Health Connect: " +
+                    "${plural(read.uploads.activities.size, "session")} · " +
+                    "${plural(read.uploads.nutrition.size, "meal")} in the last $window days"
+            }
+            Text(
+                text = text,
+                fontSize = 11.sp,
+                color = if (read?.error != null) MaterialTheme.colorScheme.error else dim,
+                modifier = Modifier.padding(top = 10.dp),
+            )
+        }
+    }
+}
+
+private fun plural(count: Int, word: String): String =
+    if (count == 1) "1 $word" else "$count ${word}s"
 
 /**
  * Today's metrics, each measured against its standard (docs/design-system.md):
@@ -912,7 +962,9 @@ private fun ChoiceChip(
 
 @Composable
 private fun DailyTotalsGraph(totals: List<com.a1c.app.data.api.DailyTotalDto>, fastName: String, slowName: String) {
-    val recent = totals.takeLast(14)
+    // The API already bounds this window; the constant keeps the two sides
+    // from drifting apart if the server default changes.
+    val recent = totals.takeLast(com.a1c.app.data.A1CRepository.HISTORY_DAYS)
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surface,

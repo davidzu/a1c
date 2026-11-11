@@ -157,7 +157,7 @@ class A1CRepository(
     /** Fetch server state and merge any still-pending doses for display. */
     private suspend fun fetch() {
         try {
-            val doses = api.doses()
+            val doses = api.doses(HISTORY_DAYS)
             val settings = try {
                 api.settings().settings
             } catch (_: Exception) {
@@ -219,6 +219,12 @@ class A1CRepository(
     companion object {
         const val GLUCOSE_HOURS = 24
         const val DAYS = 14
+
+        /**
+         * Bars shown in the daily-totals graph. Mirrors the server's
+         * `DOSES_HISTORY_DAYS` default; the API clamps and can override it.
+         */
+        const val HISTORY_DAYS = 10
         private const val TAG = "A1CRepository"
     }
 }

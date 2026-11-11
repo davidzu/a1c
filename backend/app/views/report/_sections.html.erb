@@ -12,7 +12,7 @@
     <tbody>
       <% @report.day_rows.each do |row| %>
         <tr>
-          <td><%= link_to row[:date], report_url(days: @report.days, day: row[:date], only_path: true), class: "daylink" %></td>
+          <td><%= link_to row[:date], report_link(days: @report.days, day: row[:date]), class: "daylink" %></td>
           <td><%= row[:fast_units] %></td>
           <td><%= row[:slow_units] %></td>
           <td><%= row[:total_units] %></td>
@@ -72,7 +72,7 @@
       <% end %>
     </tbody>
   </table>
-  <p><%= link_to "← Back to full report", report_url(days: @report.days, only_path: true), class: "backlink" %></p>
+  <p><%= link_to "← Back to full report", report_link(days: @report.days), class: "backlink" %></p>
 <% end %>
 
 <div class="footnote">

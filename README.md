@@ -44,7 +44,7 @@ v2 ADRs: `glucose_readings` (Nightscout ingest), `activity_sessions`,
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/v1/doses` | Recent doses + `daily_totals` (per local day in `settings.timezone`) |
+| GET | `/api/v1/doses?days=N` | Recent doses + `daily_totals` (per local day in `settings.timezone`); window defaults to `DOSES_HISTORY_DAYS` (10), max 366 |
 | POST | `/api/v1/doses` | Log a dose — `{ "units": 6, "kind": "fast", "taken_at": "...", "client_id": "uuid" }` (last two optional, for offline sync) |
 | GET | `/api/v1/settings` | Insulin names, weight, last A1C, computed `a1c_total` (avg of last lab A1C and 90-day GMI), timezone |
 | PATCH | `/api/v1/settings` | Update any subset of those fields (setting `last_a1c` also appends to `a1c_entries`) |
@@ -55,7 +55,7 @@ v2 ADRs: `glucose_readings` (Nightscout ingest), `activity_sessions`,
 | POST | `/api/v1/nutrition` | Food-entry ingest (single or array, idempotent `client_id`) |
 | GET | `/api/v1/nutrition?hours=N` | Food entries ascending (default 24 h, max 336) |
 | GET | `/api/v1/days?days=N` | Unified per-day totals: insulin fast/slow/total · carbs g · kcal · exercise min (default 30, max 180) |
-| GET | `/report?days=N` | Printable doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90) |
+| GET | `/report?days=N` | Printable doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90). `noindex`; add `REPORT_TOKEN` to require `?token=` |
 
 ## Run locally
 
