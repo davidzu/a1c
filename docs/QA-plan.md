@@ -181,6 +181,25 @@ Still open from this batch: **F-11** (the "18 sessions · 0 meals" diagnostic
 at 9 sp) was intentionally left for the next pass, since it needs a product
 decision on what that status line should become.
 
+### 4.4 Third batch (2026-11-11, APK 0.6.2)
+
+Owner decisions applied: F-11 option 2, F-12 option 2, F-13 both, F-14 = 10
+days as config. Tests **76 runs / 257 assertions / 0 failures**.
+
+| ID | Status | Change |
+|---|---|---|
+| F-11 | **Fixed** | The 9 sp debug line is now an 11 sp sentence: `Health Connect: 18 sessions · 0 meals in the last 7 days`, or `sync failed — will retry`, or `nothing in the last 7 days`. Failure text no longer prints exception class names. |
+| F-12 | **Fixed** | `NeedsPermissions` carries the missing scopes; the card says `needs access to heart rate` and offers **Connect Health** plus **Open settings**. All-or-nothing readiness is unchanged, so the read still needs all four. |
+| F-13 | **Fixed & active** | `X-Robots-Tag` + `<meta robots>` `noindex, nofollow`. Optional `REPORT_TOKEN`: missing/wrong token → 404, all report links carry it. Token **enabled on Render**; value in `~/Work/A1See/.env.local`. |
+| F-14 | **Fixed** | `/api/v1/doses?days=N`; default `DOSES_HISTORY_DAYS=10` (render.yaml), max 366. Android requests `HISTORY_DAYS` and the graph renders that window. Live: default 8 rows (Nov 2–3 had no doses), `?days=3` → 3, `?days=30` → 21. |
+
+Deploy `dep-dbqfff142hec73cvkf30` live 17:19. Verified live: no token → 404,
+wrong → 404, right → 200 with 15 token-carrying links; `X-Robots-Tag` present.
+
+**Pending on device:** the 0.6.2 APK is built but the phone dropped off USB
+before install, so the F-11/F-12 UI has not been seen on hardware yet.
+
+
 ---
 
 ## 5. Test strategy
@@ -212,6 +231,8 @@ phone against Render.
 9. Android: `pending dose merges into totals under settings.timezone` (F-08) — **open**
 10. Report: `TIR goal breach is flagged` (F-15) — if accepted.
 11. Report: `pct_time_active uses days in window, not days with one reading` (F-24) — if accepted.
+12. `marks the page noindex in headers and markup` + `requires REPORT_TOKEN` + `report links carry the token` (F-13) ✔
+13. `daily totals default to 10 days`, `accept days override and clamp`, `window is a deploy config parameter` (F-14) ✔
 
 ### 5.3 Traceability
 
@@ -531,10 +552,11 @@ unusable state. **S3** polish, docs, process.
    calendar days** (F-01).
 3. Weight was removed from the Log header — update `02-information-architecture`
    or restore the line (F-20).
-4. Is the "sessions · meals" line meant to ship? If yes, make it a designed
-   status; if no, remove before the next tag (F-11).
-5. Privacy posture for `/report`: accept private-URL-only, or add a long random
-   token to the report path? (F-13)
+4. ~~Is the "sessions · meals" line meant to ship?~~ **Decided 2026-11-11:
+   keep it as a designed 11 sp status sentence** (F-11).
+5. ~~Privacy posture for `/report`~~ **Decided: both.** noindex plus an
+   optional `REPORT_TOKEN`, enabled on Render (F-13). Token lives in
+   `~/Work/A1See/.env.local`, not in git.
 6. Should a 4xx'd queued dose be dropped with a visible warning, or surfaced as
    a per-dose error list? (F-04)
 
@@ -544,17 +566,16 @@ unusable state. **S3** polish, docs, process.
 
 | Area | Open | Worst |
 |---|---|---|
-| Day table / bars | F-01 (fixed), F-08 (fixed), F-14, G-07 | S1 |
+| Day table / bars | F-01 (fixed), F-08 (fixed), F-14 (fixed), G-07 | S1 |
 | Glucose ingest | F-03 (fixed), E-07 | S1 |
 | Offline sync | F-04 (fixed), B-06, F-19 | S1 |
 | Delivery | F-02 (deployed), F-21, P-02 | S1 |
 | API serialization | F-26 (fixed) | S1 |
-| Log UI | F-07 (fixed), F-09 (fixed), F-10 (fixed), F-06 (fixed), F-11, F-18 | S2 |
-| Health Connect | F-12, F-16 | S2 |
-| Privacy / API | F-05 (fixed), F-13, F-15, F-22 | S2 |
+| Log UI | F-06…F-11 (fixed), F-18 | S2 |
+| Health Connect | F-12 (fixed), F-16 | S2 |
+| Privacy / API | F-05 (fixed), F-13 (fixed), F-15, F-22 | S2 |
 | Docs / schema / a11y | F-17, F-20, F-23, F-24, F-25 | S3 |
 
-Fix order: **F-02+F-26 → F-01 → F-04 → F-03 → F-05/F-06 → F-07…F-10 → the
-rest.** The first nine are done and deployed or on the phone; next are F-11
-(status line), F-12 (partial HC permissions), F-13 (report privacy), F-14
-(doses payload growth).
+Fix order: the S1s and the S2s through F-13 are done and deployed. Next: F-16
+(HC calorie double counting), F-15 (TIR flags), F-18 (clock ticking), F-19
+(form state on rejection), then docs/schema/a11y (F-17, F-20, F-23…F-25).
