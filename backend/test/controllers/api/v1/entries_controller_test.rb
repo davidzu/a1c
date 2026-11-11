@@ -56,6 +56,29 @@ module Api
         assert_equal 0, GlucoseReading.count
       end
 
+      test "skips an out-of-range sgv instead of storing it" do
+        assert_no_difference "GlucoseReading.count" do
+          post api_v1_entries_url, params: { type: "sgv", sgv: 3000, date: 1_760_000_000_000 }, as: :json
+        end
+
+        assert_response :created
+        body = JSON.parse(response.body)
+        assert_equal 0, body.dig("ingested")
+        assert_equal 1, body.dig("received")
+      end
+
+      test "mixed batch keeps valid readings when one sgv is out of range" do
+        assert_difference "GlucoseReading.count", 1 do
+          post api_v1_entries_url, params: [
+            { type: "sgv", sgv: 105, date: 1_760_000_000_000 },
+            { type: "sgv", sgv: 9999, date: 1_760_000_300_000 },
+          ], as: :json
+        end
+
+        assert_equal 1, JSON.parse(response.body).dig("ingested")
+        assert_equal [ 105 ], GlucoseReading.pluck(:sgv)
+      end
+
       test "enforces the shared secret when configured" do
         ENV["GLUCOSE_INGEST_SECRET"] = "topsecret"
 

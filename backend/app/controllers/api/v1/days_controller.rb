@@ -17,7 +17,10 @@ module Api
         zone = Setting.instance.timezone
         day_sql = Dose.local_day_sql(zone)
 
+        # `limit` is a calendar window ending today, not "the last N rows with
+        # data": a workout-only day from months ago must never displace today.
         insulin = Dose
+          .in_local_days(zone, limit)
           .group(Arel.sql(day_sql))
           .order(Arel.sql(day_sql))
           .pluck(
@@ -26,9 +29,11 @@ module Api
             Arel.sql("sum(units) filter (where kind = #{Dose.kinds.fetch('slow')})")
           )
         carbs = NutritionEntry
+          .in_local_days(zone, limit)
           .group(Arel.sql(nutrition_day_sql(zone)))
           .pluck(Arel.sql(nutrition_day_sql(zone)), Arel.sql("sum(carbs_g)"), Arel.sql("sum(calories_kcal)"))
         exercise = ActivitySession
+          .in_local_days(zone, limit)
           .group(Arel.sql(activity_day_sql(zone)))
           .pluck(Arel.sql(activity_day_sql(zone)), Arel.sql("sum(minutes)"))
 
@@ -48,7 +53,7 @@ module Api
           by_date[day][:exercise_min] = minutes.to_i
         end
 
-        by_date.values.last(limit).sort_by { |r| r[:date] }
+        by_date.values.sort_by { |r| r[:date] }
       end
 
       # Nutrition and activity use the same local-day bucketing as doses,

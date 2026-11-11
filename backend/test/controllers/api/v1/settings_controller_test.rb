@@ -111,6 +111,28 @@ module Api
         assert_response :ok
         assert_equal 0, A1cEntry.count
       end
+
+      test "payload includes a1c_total as the average of lab A1C and 90-day GMI" do
+        Setting.create!(last_a1c: 6.8)
+        A1cEntry.create!(measured_on: Date.current, value: 6.8)
+        10.times { |i| GlucoseReading.create!(sgv: 180, time: i.hours.ago) }
+
+        get api_v1_settings_url, as: :json
+        body = JSON.parse(response.body).fetch("settings")
+
+        # GMI = 3.31 + 0.02392 × 180 = 7.6156 → 7.6; (6.8 + 7.6) / 2 = 7.2
+        assert_in_delta 7.2, body["a1c_total"]
+      end
+
+      test "a1c_total falls back to the lab value when there is no CGM data" do
+        Setting.create!(last_a1c: 6.8)
+        A1cEntry.create!(measured_on: Date.current, value: 6.8)
+
+        get api_v1_settings_url, as: :json
+        body = JSON.parse(response.body).fetch("settings")
+
+        assert_in_delta 6.8, body["a1c_total"]
+      end
     end
   end
 end

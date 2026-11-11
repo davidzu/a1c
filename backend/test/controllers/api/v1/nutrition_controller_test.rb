@@ -109,6 +109,17 @@ module Api
         assert_equal 1, JSON.parse(response.body).dig("nutrition").size
       end
 
+      test "index emits numeric carbs and kcal, not JSON strings" do
+        NutritionEntry.create!(taken_at: 1.hour.ago, carbs_g: 53.4, calories_kcal: 150.5,
+                                client_id: "hc:num")
+
+        get api_v1_nutrition_index_url, as: :json
+        entry = JSON.parse(response.body).dig("nutrition", 0)
+
+        assert_in_delta 53.4, entry["carbs_g"]
+        assert_in_delta 150.5, entry["calories_kcal"]
+      end
+
       # Regression 2: a real Zepp meal logged with zero carbs (black coffee,
       # kcal only) 422'd the whole batch with "Carbs g must be greater than 0".
       test "coerces zero carbs to nil instead of rejecting" do

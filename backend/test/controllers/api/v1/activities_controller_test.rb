@@ -93,6 +93,17 @@ module Api
         get api_v1_activities_url(params: { hours: 1000 }), as: :json
         assert_equal 1, JSON.parse(response.body).dig("activities").size
       end
+
+      test "index emits numeric calories, not a JSON string" do
+        ActivitySession.create!(started_at: 1.hour.ago, ended_at: 30.minutes.ago,
+                                minutes: 30, calories_kcal: 97.5, client_id: "hc:num")
+
+        get api_v1_activities_url, as: :json
+        kcal = JSON.parse(response.body).dig("activities", 0, "calories_kcal")
+
+        # assert_in_delta raises TypeError for a String: that is the point.
+        assert_in_delta 97.5, kcal
+      end
     end
   end
 end

@@ -10,11 +10,14 @@ module Api
         readings = entries.filter_map { |e| build_reading(e) }
 
         # First wins: a repeated reading (same time) is already stored, so
-        # retries are free and the history is never rewritten.
+        # retries are free and the history is never rewritten. Invalid rows
+        # (sgv out of range) are skipped like any other unusable entry — a
+        # batch from xDrip must never poison the curve with a bogus value.
         now = Time.current
         fresh = readings
           .uniq { |r| r.time }
           .reject { |r| GlucoseReading.exists?(time: r.time) }
+          .select(&:valid?)
         if fresh.any?
           GlucoseReading.insert_all!(
             fresh.map { |r| r.attributes.slice("sgv", "time", "direction", "device")

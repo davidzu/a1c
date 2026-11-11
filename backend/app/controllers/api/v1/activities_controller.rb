@@ -85,7 +85,9 @@ module Api
           started_at: session.started_at.iso8601,
           ended_at: session.ended_at.iso8601,
           minutes: session.minutes,
-          calories_kcal: session.calories_kcal,
+          # decimal column → force a JSON number; a string breaks the
+          # kotlinx.serialization Double in the Android client.
+          calories_kcal: session.calories_kcal&.to_f,
           avg_hr: session.avg_hr,
           max_hr: session.max_hr,
           source: session.source,

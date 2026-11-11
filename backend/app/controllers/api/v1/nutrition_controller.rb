@@ -77,8 +77,9 @@ module Api
         {
           id: entry.id,
           taken_at: entry.taken_at.iso8601,
-          carbs_g: entry.carbs_g,
-          calories_kcal: entry.calories_kcal,
+          # decimal columns → JSON numbers, not strings (Android DTO is Double?).
+          carbs_g: entry.carbs_g&.to_f,
+          calories_kcal: entry.calories_kcal&.to_f,
           meal_type: entry.meal_type,
           source: entry.source,
           client_id: entry.client_id

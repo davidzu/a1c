@@ -91,18 +91,30 @@ class A1CRepository(
         if (pending.isEmpty()) return
 
         val sent = mutableListOf<String>()
+        val rejected = mutableListOf<String>()
         for (dose in pending) {
             try {
                 api.createDose(
                     NewDoseDto(units = dose.units, kind = dose.kind, takenAt = dose.takenAt, clientId = dose.uuid)
                 )
                 sent += dose.uuid
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // A 4xx (other than timeout) means the server will never accept
+                // this record. Drop it so one bad dose cannot wedge the queue
+                // and block every later dose forever.
+                if (e is retrofit2.HttpException && e.code() in 400..499 && e.code() != 408) {
+                    rejected += dose.uuid
+                    android.util.Log.w(
+                        TAG,
+                        "dropping rejected queued dose ${dose.uuid}: HTTP ${e.code()}"
+                    )
+                    continue
+                }
                 break // offline or server down — keep the rest queued
             }
         }
-        if (sent.isNotEmpty()) {
-            outbox.removeAll(sent)
+        if (sent.isNotEmpty() || rejected.isNotEmpty()) {
+            outbox.removeAll(sent + rejected)
             fetch()
         }
     }
@@ -207,6 +219,7 @@ class A1CRepository(
     companion object {
         const val GLUCOSE_HOURS = 24
         const val DAYS = 14
+        private const val TAG = "A1CRepository"
     }
 }
 

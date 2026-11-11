@@ -55,13 +55,16 @@ module Api
       # over the last 90 days (GMI = 3.31 + 0.02392 × mean glucose mg/dL).
       # Moves daily with the CGM mean; anchors to the lab value. Falls back
       # to whichever source exists.
+      #
+      # Always a Float: BigDecimal serializes as a JSON *string*, which the
+      # Android client's Double field cannot decode.
       def a1c_total
         lab = A1cEntry.order(:measured_on).last&.value || Setting.instance.last_a1c
         gmi = gmi_90d
         return nil if lab.nil? && gmi.nil?
         return (gmi || lab).to_f.round(1) if lab.nil? || gmi.nil?
 
-        ((lab + gmi) / 2).round(1)
+        ((lab + gmi) / 2).to_f.round(1)
       end
 
       def gmi_90d
