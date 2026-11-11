@@ -24,6 +24,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -244,16 +245,16 @@ fun LogScreen(
             )
             ChoiceChip(
                 selected = kind == "fast",
-                label = "N",
-                // Compact pen-letter on screen; the configured insulin name
-                // is what assistive tech announces (slice-3 contract).
+                label = data.settings?.fastName ?: "Fast",
+                // The visible label is the configured insulin name (IA §Log,
+                // slice-3 contract); compact pen letters were brand-specific.
                 description = data.settings?.fastName ?: "Fast",
                 color = InsulinFast,
                 modifier = Modifier.weight(1f),
             ) { kind = "fast" }
             ChoiceChip(
                 selected = kind == "slow",
-                label = "R",
+                label = data.settings?.slowName ?: "Slow",
                 description = data.settings?.slowName ?: "Slow",
                 color = InsulinSlow,
                 modifier = Modifier.weight(1f),
@@ -355,6 +356,7 @@ fun LogScreen(
             nutrition = data.nutrition,
             healthConnect = data.healthConnect,
             healthRead = data.healthRead,
+            timezone = data.settings?.timezone,
             onRequestHealthPermissions = onRequestHealthPermissions,
         )
 
@@ -392,7 +394,8 @@ fun LogScreen(
                     )
                     Text("${dose.units} u", color = MaterialTheme.colorScheme.onBackground)
                     Text(
-                        text = timeFormat.format(Instant.parse(dose.createdAt)) + if (dose.id < 0) " · pending" else "",
+                        text = timeFormat.format(Instant.parse(dose.takenAt ?: dose.createdAt)) +
+                            if (dose.id < 0) " · pending" else "",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 13.sp,
                     )
@@ -526,7 +529,8 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
     }
 }
 
-private val clockLabel = DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
+/** Chart axis: the date matters — a 24 h window crosses midnight. */
+private val axisTimeFormat = DateTimeFormatter.ofPattern("d MMM HH:mm").withZone(ZoneId.systemDefault())
 
 /** Nightscout direction names → arrows. */
 private fun directionArrow(direction: String?): String = when (direction) {
@@ -553,6 +557,7 @@ private fun GlucoseCard(
     nutrition: List<NutritionDto>,
     healthConnect: HealthConnectState,
     healthRead: com.a1c.app.data.HealthReadResult?,
+    timezone: String?,
     onRequestHealthPermissions: () -> Unit,
 ) {
     Surface(
@@ -576,25 +581,33 @@ private fun GlucoseCard(
                 GlucoseChart(glucose, doses, activities, nutrition, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(clockLabel.format(Instant.parse(glucose.first().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                    Text("target 3.9–10", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                    Text(clockLabel.format(Instant.parse(glucose.last().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    Text(axisTimeFormat.format(Instant.parse(glucose.first().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                    Text("target 3.9–10 mmol/L", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+                    Text(axisTimeFormat.format(Instant.parse(glucose.last().time)), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    LegendDot(Glucose, "glucose")
-                    LegendDot(Food, "food")
-                    LegendDot(Exercise, "exercise")
-                    LegendDot(InsulinFast, "fast ▲")
-                    LegendDot(InsulinSlow, "slow ▼")
+                // Two deliberate rows: three context metrics, then the two
+                // dose kinds. A single row clips or wraps "slow ▼" at the edge.
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        LegendDot(Glucose, "glucose")
+                        LegendDot(Food, "food")
+                        LegendDot(Exercise, "exercise")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        LegendDot(InsulinFast, "fast ▲")
+                        LegendDot(InsulinSlow, "slow ▼")
+                    }
                 }
             }
             Spacer(Modifier.height(14.dp))
-            TodayVsStandard(days = days)
+            TodayVsStandard(days = days, timezone = timezone)
             // Health Connect entry point + slice-6 diagnostic, kept compact.
             when (healthConnect) {
                 is HealthConnectState.NeedsPermissions -> TextButton(
@@ -632,12 +645,17 @@ private fun GlucoseCard(
  * by recoloring the bar red.
  */
 @Composable
-private fun TodayVsStandard(days: List<com.a1c.app.data.api.DayDto>) {
-    val today = LocalDate.now().toString()
+private fun TodayVsStandard(days: List<com.a1c.app.data.api.DayDto>, timezone: String?) {
+    // "Today" is the server's day boundary (settings.timezone), not the
+    // phone's. They differ when travelling, which would zero the bars.
+    val zone = remember(timezone) {
+        runCatching { ZoneId.of(timezone ?: "") }.getOrDefault(ZoneId.systemDefault())
+    }
+    val today = LocalDate.now(zone).toString()
     val todayRow = days.lastOrNull { it.date == today }
     val window = days.takeLast(14)
-    val avgFast = window.takeIf { it.isNotEmpty() }?.sumOf { it.fastUnits }?.toFloat()?.div(window.size) ?: 0f
-    val avgSlow = window.takeIf { it.isNotEmpty() }?.sumOf { it.slowUnits }?.toFloat()?.div(window.size) ?: 0f
+    val avgFast = if (window.isEmpty()) 0f else window.sumOf { it.fastUnits }.toFloat() / window.size
+    val avgSlow = if (window.isEmpty()) 0f else window.sumOf { it.slowUnits }.toFloat() / window.size
 
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MetricRow(
@@ -751,7 +769,19 @@ private fun GlucoseChart(
         if (t < t0 || t > t1) null else (t - t0).toFloat() / span to dose.kind
     }
 
-    Canvas(modifier = modifier.fillMaxWidth().height(140.dp)) {
+    Row(modifier = modifier.fillMaxWidth()) {
+        // Y scale in mmol/L: honest axis labels instead of an unlabelled curve.
+        Column(
+            modifier = Modifier.width(34.dp).height(140.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.End,
+        ) {
+            Text("%.1f".format(hi), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("%.1f".format((hi + lo) / 2), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("%.1f".format(lo), fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+
+        Canvas(modifier = Modifier.weight(1f).height(140.dp)) {
         val pad = 2.dp.toPx()
         fun y(v: Double): Float {
             val frac = ((v - lo) / (hi - lo)).coerceIn(0.0, 1.0)
@@ -826,6 +856,7 @@ private fun GlucoseChart(
         // Latest point
         val lastX = ((times.last() - t0).toFloat() / span) * size.width
         drawCircle(color = Glucose, radius = 4.dp.toPx(), center = Offset(lastX, y(mmol.last())))
+        }
     }
 }
 
@@ -869,6 +900,11 @@ private fun ChoiceChip(
                 text = label,
                 color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 6.dp),
             )
         }
     }
@@ -955,6 +991,6 @@ private fun LegendDot(color: Color, label: String) {
                 .size(10.dp)
                 .background(color, RoundedCornerShape(3.dp)),
         )
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, maxLines = 1)
     }
 }

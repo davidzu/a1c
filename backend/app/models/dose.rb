@@ -4,7 +4,10 @@ class Dose < ApplicationRecord
   validates :units, numericality: { only_integer: true, greater_than: 0 }
   validates :client_id, uniqueness: true, allow_nil: true
 
-  scope :recent, -> { order(created_at: :desc).limit(50) }
+  # "Recent" means recent by the moment that counts (the real injection time
+  # when the client recorded it, else server receive time) — an offline dose
+  # synced hours later must not jump to the top of the list.
+  scope :recent, -> { order(Arel.sql("coalesce(taken_at, created_at) DESC")).limit(50) }
 
   # The moment that counts for the graph: the real injection time when the
   # client recorded it (offline sync), otherwise the server receive time.

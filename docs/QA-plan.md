@@ -160,6 +160,27 @@ the last Health Connect session is 2026-10-31, outside the app's 24 h band
 window. Confirm on the next workout sync; the numeric payload that used to
 break decoding is proven by `/activities`.
 
+### 4.3 Second batch (2026-11-11, APK 0.6.1)
+
+Tests **69 runs / 237 assertions / 0 failures**; APK `0.6.1` (versionCode 7)
+built and installed on the phone.
+
+| ID | Status | Change |
+|---|---|---|
+| F-05 | **Fixed** | `ErrorsController` + catch-all routes (`/` and `*path`) render the documented `{error:{code,message,field}}` envelope with 404. Test asserts known routes are not shadowed. |
+| F-06 | **Fixed** | `Dose.recent` orders by `coalesce(taken_at, created_at)`; the Recent-doses row formats `taken_at` when present. Test proves an offline dose does not jump the list. |
+| F-07 | **Fixed — docs followed** | Type chips show the configured insulin names (`Novorapid` / `Ryzodeg`), ellipsized at 13 sp. The N/R pen letters were brand-specific. Verified on the phone. **Open question 1 is closed by this choice; say the word and it reverts to N/R + a docs edit.** |
+| F-08 | **Fixed (zone); avg semantics kept** | "Today" is computed in `settings.timezone` (falls back to the device zone). The 14-day average still divides by days *with data* inside the now-correct 14-day window. |
+| F-09 | **Fixed** | Legend is two deliberate rows (glucose/food/exercise, then fast ▲/slow ▼); nothing clips or wraps mid-word. Verified on the phone. |
+| F-10 | **Fixed** | Y axis labelled in mmol/L (max/mid/min); x axis shows `d MMM HH:mm` at both ends, so a 24 h window no longer looks like it runs backwards. Verified on the phone. |
+
+Also bumped `versionCode 6 → 7`, `versionName 0.6.0 → 0.6.1` so the installed
+APK maps to a commit.
+
+Still open from this batch: **F-11** (the "18 sessions · 0 meals" diagnostic
+at 9 sp) was intentionally left for the next pass, since it needs a product
+decision on what that status line should become.
+
 ---
 
 ## 5. Test strategy
@@ -183,13 +204,14 @@ phone against Render.
 1. `days window ends today, not at the newest inserted day key` (F-01) ✔
 2. `days window excludes events older than N calendar days` (F-01) ✔
 3. `skips an out-of-range sgv instead of storing it` + `mixed batch keeps valid readings` (F-03) ✔
-4. `unknown route returns the JSON error envelope` (F-05) — **open**
+4. `unknown API path returns the documented error envelope` + root/top-level + `known routes are not shadowed` (F-05) ✔
 5. `payload includes a1c_total as the average of lab A1C and 90-day GMI` + fallback (F-02/F-26) ✔
 6. `index emits numeric calories/carbs, not JSON strings` (F-26) ✔
-7. Android: `outbox drops a poison message on 4xx and continues` (F-04) — **open** (needs a harness)
-8. Android: `pending dose merges into totals under settings.timezone` (F-08) — **open**
-9. Report: `TIR goal breach is flagged` (F-15) — if accepted.
-10. Report: `pct_time_active uses days in window, not days with one reading` (F-24) — if accepted.
+7. `recent doses are ordered by effective time, not receive time` (F-06) ✔
+8. Android: `outbox drops a poison message on 4xx and continues` (F-04) — **open** (needs a harness)
+9. Android: `pending dose merges into totals under settings.timezone` (F-08) — **open**
+10. Report: `TIR goal breach is flagged` (F-15) — if accepted.
+11. Report: `pct_time_active uses days in window, not days with one reading` (F-24) — if accepted.
 
 ### 5.3 Traceability
 
@@ -502,10 +524,11 @@ unusable state. **S3** polish, docs, process.
 
 ## 10. Open questions for the product owner
 
-1. Chips: keep the pen letters **N/R** or switch to the configured names? If
-   N/R, update IA + slice 3.3; if names, use the names (F-07).
-2. Should `/api/v1/days?days=N` mean calendar days (recommended) or rows?
-   Confirm before fixing F-01, because the report and bars share the concept.
+1. ~~Chips: keep the pen letters N/R or use the configured names?~~ **Decided
+   2026-11-11: configured names** (F-07), matching IA + slice 3.3. Revert if
+   the pen letters were intentional — then the docs change instead.
+2. ~~Should `/api/v1/days?days=N` mean calendar days or rows?~~ **Decided:
+   calendar days** (F-01).
 3. Weight was removed from the Log header — update `02-information-architecture`
    or restore the line (F-20).
 4. Is the "sessions · meals" line meant to ship? If yes, make it a designed
@@ -521,16 +544,17 @@ unusable state. **S3** polish, docs, process.
 
 | Area | Open | Worst |
 |---|---|---|
-| Day table / bars | F-01 (fixed), F-08, F-14, G-07 | S1 |
+| Day table / bars | F-01 (fixed), F-08 (fixed), F-14, G-07 | S1 |
 | Glucose ingest | F-03 (fixed), E-07 | S1 |
 | Offline sync | F-04 (fixed), B-06, F-19 | S1 |
-| Delivery | F-02 (ready to deploy), F-21, P-02 | S1 |
+| Delivery | F-02 (deployed), F-21, P-02 | S1 |
 | API serialization | F-26 (fixed) | S1 |
-| Log UI | F-06, F-07, F-09, F-10, F-11, F-18 | S2 |
+| Log UI | F-07 (fixed), F-09 (fixed), F-10 (fixed), F-06 (fixed), F-11, F-18 | S2 |
 | Health Connect | F-12, F-16 | S2 |
-| Privacy / API | F-05, F-13, F-15, F-22 | S2 |
+| Privacy / API | F-05 (fixed), F-13, F-15, F-22 | S2 |
 | Docs / schema / a11y | F-17, F-20, F-23, F-24, F-25 | S3 |
 
-Fix order: **F-02+F-26 → F-01 → F-04 → F-03 → F-05/F-06 → F-07…F-12 → the
-rest.** The first five are fixed on `fix/qa-blockers`; only the push and the
-on-phone check remain.
+Fix order: **F-02+F-26 → F-01 → F-04 → F-03 → F-05/F-06 → F-07…F-10 → the
+rest.** The first nine are done and deployed or on the phone; next are F-11
+(status line), F-12 (partial HC permissions), F-13 (report privacy), F-14
+(doses payload growth).

@@ -14,4 +14,8 @@ Rails.application.routes.draw do
       get "days", to: "days#index"
     end
   end
+
+  # Unknown paths still answer with the documented error envelope.
+  match "/", to: "errors#not_found", via: :all
+  match "*path", to: "errors#not_found", via: :all
 end

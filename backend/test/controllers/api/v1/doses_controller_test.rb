@@ -72,6 +72,20 @@ module Api
         assert_equal 7, doses.last["units"]
       end
 
+      test "recent doses are ordered by effective time, not receive time" do
+        # Injected 5 h ago but synced 1 min ago (offline), vs injected 10 min
+        # ago but received an hour ago. The list must follow the injection.
+        offline = Dose.create!(units: 4, kind: :fast, taken_at: 5.hours.ago,
+                               created_at: 1.minute.ago, client_id: "later-sync")
+        recent = Dose.create!(units: 6, kind: :fast, taken_at: 10.minutes.ago,
+                             created_at: 1.hour.ago, client_id: "earlier-sync")
+
+        get api_v1_doses_url, as: :json
+        ids = JSON.parse(response.body)["doses"].map { |d| d["id"] }
+
+        assert_equal [ offline.id, recent.id ], ids
+      end
+
       test "daily totals bucket by local day, not UTC (UTC-6 regression)" do
         # 21:00 Monterrey = 03:00 UTC next day. Must count as the SAME local
         # day as a dose logged at noon Monterrey.
