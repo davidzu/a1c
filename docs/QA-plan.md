@@ -128,17 +128,37 @@ Branch `fix/qa-blockers`, tests **65 runs / 226 assertions / 0 failures**.
 
 | ID | Status | Change |
 |---|---|---|
-| F-01 | **Fixed** | `/days` now filters each source with `in_local_days(zone, N)` — a calendar window ending today; `last(limit)` removed. Regression tests for a stale workout-only day and an out-of-window dose. |
-| F-02 | **Ready to deploy** | Root cause is two unpushed commits, not code. Blocked on the push + Render deploy; on-phone verification after. |
+| F-01 | **Fixed** | `/days` now filters each source with `in_local_days(zone, N)` — a calendar window ending today; `last(limit)` removed. Regression tests for a stale workout-only day and an out-of-window dose. Verified live: `?days=3` → Nov 9/10/11. |
+| F-02 | **Deployed & verified** | Root cause was two unpushed commits. Pushed `ebfe87d..4942777`; Render deploy `dep-dbqetjs9v7es73di78jg` went **live**. Live `/settings` now returns `a1c_total: 6.9` (Float) and the phone header shows `A1C:Total 6.9`. |
 | F-03 | **Fixed** | Glucose ingest drops invalid rows (`.select(&:valid?)`) instead of `insert_all!`-ing them. Tests: single `sgv: 3000`, mixed batch. |
 | F-04 | **Fixed (Android)** | `syncOutbox()` drops a 4xx-rejected dose and continues; only network/5xx breaks the loop. Compiles via `:app:compileDemoDebugKotlin`. No unit test yet (no Android harness — F-25). |
-| F-26 | **Fixed** | `a1c_total`, `calories_kcal`, `carbs_g`/`calories_kcal` serialized with `.to_f`; tests assert JSON numbers (a String raises `TypeError` in `assert_in_delta`). |
+| F-26 | **Fixed & verified live** | `a1c_total`, `calories_kcal`, `carbs_g`/`calories_kcal` serialize with `.to_f`; tests assert JSON numbers. Live activities now return `calories_kcal` as Float. |
 | F-05 | Open | Unknown routes still return a 0-byte 404 (needs a catch-all route + envelope). |
 | F-06…F-25 | Open | See the tracker in §11. |
 
 Three `days_controller` tests were rewritten to be relative to today: they had
 hard-coded September dates and only passed because `/days` ignored the
 calendar.
+
+### 4.2 Post-deploy verification (2026-11-11)
+
+Render deploy `dep-dbqetjs9v7es73di78jg` from `4942777`, status **live**
+(16:41 CST). Against the live host afterwards:
+
+| Check | Result |
+|---|---|
+| `GET /up` | 200 |
+| `GET /api/v1/settings` | `a1c_total: 6.9` (Float); names/weight/A1C intact |
+| `GET /api/v1/activities?hours=336` | 28 sessions, `calories_kcal` is a **float** |
+| `GET /api/v1/days?days=3` | `2026-11-09, 2026-11-10, 2026-11-11` |
+| `GET /api/v1/days?days=14` | 11 rows, `2026-10-31 → 2026-11-11` (window starts Oct 29; empty days absent) |
+| `GET /report?days=14` | 200, 17 KB |
+| Phone after force-stop + relaunch | `A1C:Total 6.9` in the header; insulin names still Novorapid/Ryzodeg |
+
+Residual check: exercise bands/food dots could not be confirmed visually —
+the last Health Connect session is 2026-10-31, outside the app's 24 h band
+window. Confirm on the next workout sync; the numeric payload that used to
+break decoding is proven by `/activities`.
 
 ---
 
