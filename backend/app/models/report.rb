@@ -40,12 +40,15 @@ class Report
   end
 
   # % time active: readings over expected readings (288/day at 5-minute
-  # sampling) across the days of data.
+  # sampling) across the days of data. Counted in 5-minute buckets so the
+  # metric is independent of the uploader's rate — Juggluco sends every
+  # minute, xDrip every five, and a raw count would read 500%.
   def pct_time_active
     expected = days_of_data * 288.0
     return 0.0 if expected.zero?
 
-    (readings_count / expected * 100).round(1)
+    buckets = readings.map { |r| r.time.to_i / 300 }.uniq.size
+    (buckets / expected * 100).round(1)
   end
 
   def mean_glucose

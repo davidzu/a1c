@@ -18,6 +18,7 @@ module Api
           .uniq { |r| r.time }
           .reject { |r| GlucoseReading.exists?(time: r.time) }
           .select(&:valid?)
+        fresh = reject_near_duplicates(fresh)
         if fresh.any?
           GlucoseReading.insert_all!(
             fresh.map { |r| r.attributes.slice("sgv", "time", "direction", "device")
@@ -54,6 +55,21 @@ module Api
 
       def secret_required?
         ingest_secret.present?
+      end
+
+      # Two uploaders can describe the same moment with different precision
+      # (xDrip sends fractional seconds, Juggluco whole seconds; a Nightscout
+      # "Resend" re-sends old readings). Dedupe within ±30 s, not on the exact
+      # timestamp, so the same sensor minute is never stored twice.
+      def reject_near_duplicates(readings)
+        return readings if readings.empty?
+
+        span = (readings.map(&:time).min - 30.seconds)..(readings.map(&:time).max + 30.seconds)
+        existing = GlucoseReading.where(time: span).pluck(:time)
+
+        readings.reject do |reading|
+          existing.any? { |t| (t - reading.time).abs <= 30 }
+        end
       end
 
       def secret_valid?
