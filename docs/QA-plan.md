@@ -118,6 +118,7 @@ violation · **S3** polish / docs / process. `E` = confirmed by execution,
 | F-24 | S3 | Report math | `% time active` divides by `days_of_data × 288`, where a day with one reading counts as a full day. | C |
 | F-25 | S3 | Android | Zero unit/instrumentation tests; no harness for the outbox or the repository. | E |
 | F-26 | S1 | API serialization | Decimal columns were emitted as JSON **strings** (`"calories_kcal":"97.0"`, `"carbs_g":"53.4"`, `a1c_total`). The Android DTOs are `Double?`, so kotlinx.serialization rejects the whole response; the repository swallows it and falls back to empty/defaults. Result: exercise bands and food dots never render, and deploying F-02 would have silently reset insulin names to "Fast"/"Slow". | E: live activities payload types; caught by the new `a1c_total` test |
+| F-27 | S2 | Glucose ingest | Dedupe used the exact timestamp. xDrip sends fractional seconds, Juggluco whole seconds, and a Nightscout "Resend" re-sends old values, so the same sensor minute could be stored twice (confirmed once in production). Dedupe is now ±30 s; `% time active` counts 5-minute buckets so 1-minute uploads can't exceed 100%. | E: duplicate at 2026-11-11T23:43:38Z |
 
 S1 items (F-01…F-04, F-26) block the next release; F-02 is a deploy plus the
 F-26 fix.

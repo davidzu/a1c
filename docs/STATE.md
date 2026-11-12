@@ -1,5 +1,33 @@
 # A1See — session state
 
+## 2026-11-12 · CGM pipeline: xDrip freeze diagnosed
+
+- **Symptom:** 147.7 h missing over 14 days, every night ~22:00 → ~06:00
+  (A1See 54–55% time active).
+- **Evidence:** Juggluco's own `files/sensors/<serial>/polls.dat` (20-byte
+  records: epoch, seq, sgv) holds **4,413 readings, 1/min, zero gaps** for
+  Nov 8–11. The loss is after Juggluco.
+- **Screen-off test (16 min, charging at 100%):** xDrip `curProcState=10`
+  and **0 readings** reached A1See; Juggluco stayed `curProcState=4`
+  (foreground service). xDrip's ongoing notification has **no
+  FOREGROUND_SERVICE flag** — it is not a foreground service, so the OS
+  freezes it when the screen is off. The Juggluco→xDrip EverSense broadcast
+  is live-only, so frozen minutes are lost permanently.
+- **Impact:** same 3-day window, complete vs A1See — mean 167.5 vs 153.1
+  mg/dL, GMI **7.3 vs 7.0**, TIR **61.7 vs 68.8%**. The missing hours are
+  the high ones (Nov 10 night 242, Nov 11 night 233; Nov 9 night 148), so
+  the report was flattering the numbers.
+- **Shipped (fc6f0e1):** glucose ingest dedupes within ±30 s (xDrip
+  fractional seconds vs Juggluco whole seconds); `/report` % time active
+  counts distinct 5-minute buckets so 1-minute uploads can't read 500%.
+- **Next:** switch ingest to Juggluco's own Nightscout Uploader
+  (`https://a1c-api.onrender.com`, Active, test V3 off, Give Amounts off),
+  turn off xDrip's Nightscout upload (keep xDrip for alarms), press
+  "Resend data" to backfill, then repeat the 16-min screen-off test.
+- **Cleanup:** my compatibility replay stored one extra row —
+  `GlucoseReading.where(device: "Juggluco").delete_all` in the Render shell
+  (all real rows are `xDrip-NSEmulator`).
+
 ## 2026-11-11 · QA audit + blocker fixes (branch `fix/qa-blockers`)
 
 - Wrote `docs/QA-plan.md`: baseline audit, 16 suites (~120 cases), findings
