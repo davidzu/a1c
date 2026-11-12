@@ -24,6 +24,15 @@
   (`https://a1c-api.onrender.com`, Active, test V3 off, Give Amounts off),
   turn off xDrip's Nightscout upload (keep xDrip for alarms), press
   "Resend data" to backfill, then repeat the 16-min screen-off test.
+- **Resolved 2026-11-12 18:43 local:** the cause was RedMagic's battery
+  management, not xDrip alone. Three toggles were off — **auto-start**,
+  **secondary launch**, **background running** (Apps → battery management).
+  Allowed, then the same screen-off test: 8 min → 1 reading, 20 min → 4/4
+  readings (00:48/00:52/00:57/01:02), xDrip still `curProcState=10` with no
+  foreground service. No persistent notification needed.
+  Overnight (6–9 h) still to confirm; if it regresses, next levers are
+  xDrip's "Run Collector in foreground" or the Juggluco uploader switch
+  below.
 - **Cleanup:** my compatibility replay stored one extra row —
   `GlucoseReading.where(device: "Juggluco").delete_all` in the Render shell
   (all real rows are `xDrip-NSEmulator`).
