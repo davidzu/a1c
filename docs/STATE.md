@@ -13,10 +13,11 @@
 - **Verified today:** `/days` calendar window, numeric JSON payloads, 404
   error envelope, report token (404/404/200 + noindex), ±30 s dedupe +
   5-min-bucket metric (80 tests / 266 assertions), and xDrip background
-  delivery (20 min screen-off → 4/4 readings).
-- **Open:** overnight CGM verification (the first real 8 h test); the 0.6.2
-  Health Connect status line and missing-permission UI not yet seen on
-  device; one test glucose row to delete; QA findings F-15…F-25.
+  delivery — **overnight confirmed 2026-11-12**: 108/108 readings from
+  22:00–06:40, 24 h coverage 90.6%, only 3 short daytime gaps.
+- **Open:** the 0.6.2 Health Connect status line and missing-permission UI
+  not yet seen on device; one test glucose row to delete; QA findings
+  F-15…F-25.
 - **Next:** (1) tomorrow morning, check last night's coverage; (2) if the
   gap returns, enable xDrip "Run Collector in foreground" or switch uploads
   to Juggluco; (3) QA F-15 (TIR flags), F-16 (HC kcal double count),
@@ -53,9 +54,13 @@
   Allowed, then the same screen-off test: 8 min → 1 reading, 20 min → 4/4
   readings (00:48/00:52/00:57/01:02), xDrip still `curProcState=10` with no
   foreground service. No persistent notification needed.
-  Overnight (6–9 h) still to confirm; if it regresses, next levers are
-  xDrip's "Run Collector in foreground" or the Juggluco uploader switch
-  below.
+- **Overnight confirmed 2026-11-12:** 108/108 readings 22:00–06:40 (mean
+  115 mg/dL, TIR 100%, GMI 6.1); last 24 h = 270 readings, 90.6% bucket
+  coverage, gaps only 13:47→14:40, 07:41→08:23, 18:01→18:18 (1.9 h total,
+  all daytime). 14-day report still reads 54.9% time active / GMI 7.1 /
+  TIR 62.3% because 13 gap-riddled days remain in the window; it will climb
+  as new nights accumulate. No action needed unless a system update resets
+  the three OEM toggles.
 - **Cleanup:** my compatibility replay stored one extra row —
   `GlucoseReading.where(device: "Juggluco").delete_all` in the Render shell
   (all real rows are `xDrip-NSEmulator`).
