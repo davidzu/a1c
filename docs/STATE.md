@@ -1,5 +1,28 @@
 # A1See — session state
 
+## Current state — 2026-11-12 (session end)
+
+- **Repo:** `~/Work/A1See` on `main`, clean, synced with origin. The
+  `fix/qa-blockers` worktree was retired; all QA work is merged into `main`.
+- **Deployed API:** Render live on `fc6f0e1` (docs commits use
+  `[skip render]`). `REPORT_TOKEN` enabled — value in `.env.local`, not git.
+  `DOSES_HISTORY_DAYS=10`.
+- **Phone:** A1See **0.6.2** (versionCode 8). xDrip + Juggluco both allowed
+  in RedMagic battery management (auto-start, secondary launch, background
+  running). xDrip uploads; Juggluco is the sensor reader/broadcaster.
+- **Verified today:** `/days` calendar window, numeric JSON payloads, 404
+  error envelope, report token (404/404/200 + noindex), ±30 s dedupe +
+  5-min-bucket metric (80 tests / 266 assertions), and xDrip background
+  delivery (20 min screen-off → 4/4 readings).
+- **Open:** overnight CGM verification (the first real 8 h test); the 0.6.2
+  Health Connect status line and missing-permission UI not yet seen on
+  device; one test glucose row to delete; QA findings F-15…F-25.
+- **Next:** (1) tomorrow morning, check last night's coverage; (2) if the
+  gap returns, enable xDrip "Run Collector in foreground" or switch uploads
+  to Juggluco; (3) QA F-15 (TIR flags), F-16 (HC kcal double count),
+  F-18 (clock ticking), F-19 (form state on rejection); (4) slice 8
+  (ADR-004 identity/scoping) is the next product gate.
+
 ## 2026-11-12 · CGM pipeline: xDrip freeze diagnosed
 
 - **Symptom:** 147.7 h missing over 14 days, every night ~22:00 → ~06:00
