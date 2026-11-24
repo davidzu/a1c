@@ -44,20 +44,45 @@ class ReportController < ActionController::Base
   # Fails closed on the switch: no armed window → 404, whichever path and
   # whichever token. A token, when one is configured and supplied, must match;
   # a stale token 404s loudly instead of quietly working.
+  #
+  # While armed, the country filter applies to anonymous visits. A valid token
+  # is the escape hatch: if the carrier geolocates him somewhere unexpected,
+  # his own tokenized link still opens the page from anywhere.
   def require_report_access
     setting = Setting.instance
     return head :not_found unless setting.report_armed?
 
     expected = setting.effective_report_token
     provided = params[:token].to_s
+    token_ok = expected.present? && provided.present? &&
+      ActiveSupport::SecurityUtils.secure_compare(provided, expected)
 
-    if expected.present? && provided.present?
-      unless ActiveSupport::SecurityUtils.secure_compare(provided, expected)
-        return head :not_found
-      end
+    # A token was supplied but it is not the current one: no fallback.
+    if provided.present? && expected.present? && !token_ok
+      return head :not_found
     end
+
+    return head :not_found unless token_ok || country_allowed?
 
     # Reached with an armed window: the view shows when the link lapses.
     @access_until = setting.report_access_until
+  end
+
+  # Coarse geo gate for the open window: Cloudflare labels every request with
+  # CF-IPCountry at Render's edge, so this costs nothing and needs no database.
+  # REPORT_ALLOWED_COUNTRIES unset ("" or missing) disables the filter, which
+  # is what local development wants.
+  def country_allowed?
+    allowed = ENV["REPORT_ALLOWED_COUNTRIES"].to_s
+      .split(",").map { |code| code.strip.upcase }.reject(&:empty?)
+    return true if allowed.empty?
+
+    country = request.headers["CF-IPCountry"].to_s.upcase
+    return true if country.present? && allowed.include?(country)
+
+    Rails.logger.warn(
+      "report: blocked country=#{country.presence || 'unknown'} ip=#{request.remote_ip}"
+    )
+    false
   end
 end

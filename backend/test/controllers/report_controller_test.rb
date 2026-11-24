@@ -18,7 +18,10 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     Setting.instance.arm_report!(60)
   end
 
-  teardown { ENV.delete("REPORT_TOKEN") }
+  teardown do
+    ENV.delete("REPORT_TOKEN")
+    ENV.delete("REPORT_ALLOWED_COUNTRIES")
+  end
 
   test "renders the report shell with no data" do
     get_report
@@ -178,6 +181,62 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
 
     get doctor_dashboard_url
     assert_response :success
+  end
+
+  # ---- country filter (Cloudflare's CF-IPCountry at Render's edge) --------
+
+  test "allows the listed country" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "MX" }
+    assert_response :success
+  end
+
+  test "blocks every other country while armed" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "US" }
+    assert_response :not_found
+
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "RU" }
+    assert_response :not_found
+  end
+
+  test "blocks a request with no country label at all" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+
+    get doctor_dashboard_url
+    assert_response :not_found
+  end
+
+  test "the filter is off when no countries are configured" do
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "US" }
+    assert_response :success
+  end
+
+  test "a valid token is the escape hatch for a mislabelled network" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "US" }
+    assert_response :not_found
+
+    get report_url(params: { token: TOKEN }), headers: { "CF-IPCountry" => "US" }
+    assert_response :success
+  end
+
+  test "a wrong token does not bypass the country filter" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+
+    get report_url(params: { token: "wrong" }), headers: { "CF-IPCountry" => "US" }
+    assert_response :not_found
+  end
+
+  test "the switch still wins over an allowed country" do
+    ENV["REPORT_ALLOWED_COUNTRIES"] = "MX"
+    Setting.instance.disarm_report!
+
+    get doctor_dashboard_url, headers: { "CF-IPCountry" => "MX" }
+    assert_response :not_found
   end
 
   private
