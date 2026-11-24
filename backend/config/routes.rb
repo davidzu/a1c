@@ -12,6 +12,9 @@ Rails.application.routes.draw do
       resources :activities, only: [ :index, :create ]
       resources :nutrition, only: [ :index, :create ]
       get "days", to: "days#index"
+      resource :report_access, only: [ :show, :update ], controller: "report_access" do
+        post :rotate
+      end
     end
   end
 

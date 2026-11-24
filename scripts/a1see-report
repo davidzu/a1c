@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# a1see-report — the on/off switch for the doctor report (GET /report).
+#
+# The report is dark by default. Arming opens it for a bounded window; it
+# closes itself when the window ends, so a forgotten switch cannot leave a
+# year of health data readable.
+#
+#   a1see-report on [3h]     arm (default 3h, max 7d) and print the link
+#   a1see-report off         close it now
+#   a1see-report status      armed? until when? how long left?
+#   a1see-report open [2h]   arm for the window and open it in the browser
+#   a1see-report url         print the link (only if armed)
+#   a1see-report rotate      new token; every previously shared link dies
+#
+# Credentials come from the repo's .env.local (RENDER_URL and
+# REPORT_ADMIN_SECRET). Override the file with A1SEE_ENV_FILE.
+set -euo pipefail
+
+ENV_FILE="${A1SEE_ENV_FILE:-$HOME/Work/A1See/.env.local}"
+
+die() { printf 'a1see-report: %s\n' "$*" >&2; exit 1; }
+
+[[ -r "$ENV_FILE" ]] || die "cannot read $ENV_FILE"
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+[[ -n "${RENDER_URL:-}" ]] || die "RENDER_URL missing in $ENV_FILE"
+[[ -n "${REPORT_ADMIN_SECRET:-}" ]] || die "REPORT_ADMIN_SECRET missing in $ENV_FILE"
+
+API="$RENDER_URL/api/v1/report_access"
+MAX_MINUTES=$((7 * 24 * 60))
+
+call() { # call METHOD [JSON]
+  local method="$1" body="${2:-}"
+  local args=(-sS -X "$method" -H "X-Report-Admin-Secret: $REPORT_ADMIN_SECRET" -w '\n%{http_code}')
+  [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' -d "$body")
+
+  local raw code
+  raw=$(curl "${args[@]}" "$API") || die "request failed (network?)"
+  code=$(printf '%s' "$raw" | tail -n1)
+  raw=$(printf '%s' "$raw" | sed '$d')
+
+  case "$code" in
+    200) printf '%s' "$raw" ;;
+    404) die "switch not available — REPORT_ADMIN_SECRET is unset or different on the server" ;;
+    *)   die "unexpected HTTP $code: $raw" ;;
+  esac
+}
+
+# "3h", "90m", "2h30m", "45m" → minutes. Bare numbers are minutes.
+to_minutes() {
+  local spec="${1:-3h}" total=0 n unit
+  spec=$(tr '[:upper:]' '[:lower:]' <<<"$spec")
+  while [[ "$spec" =~ ^([0-9]+)([hm]?)(.*)$ ]]; do
+    n=${BASH_REMATCH[1]}
+    unit=${BASH_REMATCH[2]}
+    spec=${BASH_REMATCH[3]}
+    case "$unit" in
+      h) total=$((total + n * 60)) ;;
+      *) total=$((total + n)) ;;
+    esac
+  done
+  (( total > 0 )) || die "cannot read duration '$1' (try 3h, 90m, 2h30m)"
+  (( total > MAX_MINUTES )) && total=$MAX_MINUTES
+  printf '%s' "$total"
+}
+
+human_minutes() {
+  local m="$1"
+  if (( m >= 60 )); then
+    printf '%dh%02dm' $((m / 60)) $((m % 60))
+  else
+    printf '%dm' "$m"
+  fi
+}
+
+print_state() { # json
+  local json="$1" armed until left url
+  armed=$(jq -r '.armed' <<<"$json")
+  until=$(jq -r '.until // empty' <<<"$json")
+  left=$(jq -r '.minutes_left // 0' <<<"$json")
+  url=$(jq -r '.url // empty' <<<"$json")
+
+  if [[ "$armed" == "true" ]]; then
+    printf 'report is ON — until %s local (%s left)\n' \
+      "$(date -d "$until" '+%a %H:%M %Z')" "$(human_minutes "$left")"
+    [[ -n "$url" ]] && printf '%s\n' "$url"
+  else
+    printf 'report is OFF — /report answers 404 to everyone\n'
+  fi
+}
+
+cmd="${1:-status}"
+shift || true
+
+case "$cmd" in
+  on)
+    print_state "$(call PATCH "$(jq -n --argjson m "$(to_minutes "${1:-3h}")" '{minutes: $m}')")"
+    ;;
+  off)
+    print_state "$(call PATCH '{"enabled": false}')"
+    ;;
+  open)
+    json=$(call PATCH "$(jq -n --argjson m "$(to_minutes "${1:-3h}")" '{minutes: $m}')")
+    print_state "$json"
+    url=$(jq -r '.url // empty' <<<"$json")
+    [[ -n "$url" ]] && xdg-open "$url" >/dev/null 2>&1 &
+    ;;
+  status)
+    print_state "$(call GET)"
+    ;;
+  url)
+    json=$(call GET)
+    [[ "$(jq -r '.armed' <<<"$json")" == "true" ]] || die "report is off — run: a1see-report on 3h"
+    jq -r '.url' <<<"$json"
+    ;;
+  rotate)
+    print_state "$(call POST)"
+    printf 'any link shared before now is dead; the new one is above.\n'
+    ;;
+  *)
+    sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+    ;;
+esac

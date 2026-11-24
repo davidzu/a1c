@@ -7,6 +7,9 @@
     · <%= link_to "14 days", report_link(days: 14), class: "daylink" %>
     · <%= link_to "30 days", report_link(days: 30), class: "daylink" %>
     · <%= link_to "90 days", report_link(days: 90), class: "daylink" %>
+    <% if @access_until %>
+      · <span class="access">link live until <%= @access_until.in_time_zone(@report.zone).strftime("%H:%M") %> <%= @access_until.in_time_zone(@report.zone).strftime("%Z") %></span>
+    <% end %>
   </div>
 </header>
 

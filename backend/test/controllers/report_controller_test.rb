@@ -1,6 +1,10 @@
 require "test_helper"
 
+# The report is closed by default and only opens inside an armed window with
+# the current token. Every content test therefore arms a window in setup.
 class ReportControllerTest < ActionDispatch::IntegrationTest
+  TOKEN = "test-report-token"
+
   setup do
     Dose.delete_all
     GlucoseReading.delete_all
@@ -8,10 +12,15 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     ActivitySession.delete_all
     A1cEntry.delete_all
     Setting.delete_all
+
+    ENV["REPORT_TOKEN"] = TOKEN
+    Setting.instance.arm_report!(60)
   end
 
+  teardown { ENV.delete("REPORT_TOKEN") }
+
   test "renders the report shell with no data" do
-    get report_url
+    get_report
     assert_response :success
     assert_match "Glucose report", response.body
     assert_match "No CGM readings in this window yet.", response.body
@@ -23,7 +32,7 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     3.times { |i| GlucoseReading.create!(sgv: 90, time: (i + 10).hours.ago) }
     2.times { |i| GlucoseReading.create!(sgv: 200, time: (i + 20).hours.ago) }
 
-    get report_url
+    get_report
     assert_response :success
     assert_match "117.0", response.body
     assert_match "6.1%", response.body
@@ -33,14 +42,14 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "days param clamps between 1 and 90, defaults 14" do
-    get report_url(params: { days: 500 })
+    get_report(days: 500)
     assert_response :success
     assert_match "window: 90 days", response.body
 
-    get report_url(params: { days: 0 })
+    get_report(days: 0)
     assert_match "window: 1 days", response.body
 
-    get report_url
+    get_report
     assert_match "window: 14 days", response.body
   end
 
@@ -52,7 +61,7 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     ActivitySession.create!(started_at: 4.hours.ago, ended_at: 3.hours.ago, minutes: 60, client_id: "hc:run")
 
     day = Time.current.in_time_zone("America/Monterrey").to_date.to_s
-    get report_url(params: { day: day })
+    get_report(day: day)
     assert_response :success
     assert_match "Day detail", response.body
     assert_match "polyline", response.body
@@ -63,7 +72,7 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "day outside the window returns 404" do
-    get report_url(params: { day: "1990-01-01" })
+    get_report(day: "1990-01-01")
     assert_response :not_found
   end
 
@@ -71,52 +80,85 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     A1cEntry.create!(measured_on: 2.days.ago.to_date, value: 7.2)
     GlucoseReading.create!(sgv: 150, time: 1.hour.ago)
 
-    get report_url
+    get_report
     assert_response :success
     assert_match "lab A1C", response.body
     assert_match "GMI trend", response.body
   end
 
   test "marks the page noindex in headers and markup" do
-    get report_url
+    get_report
 
     assert_response :success
     assert_equal "noindex, nofollow", response.headers["X-Robots-Tag"]
     assert_match '<meta name="robots" content="noindex, nofollow">', response.body
   end
 
-  test "requires REPORT_TOKEN when configured, and 404s without it" do
-    ENV["REPORT_TOKEN"] = "s3cret-token"
+  test "shows when the link lapses" do
+    get_report
+    assert_response :success
 
+    until_time = Setting.instance.report_access_until.in_time_zone("America/Monterrey").strftime("%H:%M")
+    assert_match "link live until #{until_time}", response.body
+  end
+
+  test "report links carry the token so navigation keeps working" do
+    zone = Setting.instance.timezone
+    today = Time.current.in_time_zone(zone).to_date
+    Dose.create!(units: 4, kind: :fast, taken_at: Time.current)
+
+    get_report
+    assert_response :success
+
+    assert_match "token=#{TOKEN}", response.body
+    assert_match "day=#{today}", response.body
+  end
+
+  # ---- the switch ---------------------------------------------------------
+
+  test "a disarmed report is a 404 even with the right token" do
+    Setting.instance.disarm_report!
+
+    get_report
+    assert_response :not_found
+  end
+
+  test "an expired window is a 404 even with the right token" do
+    Setting.instance.update!(report_access_until: 1.minute.ago)
+
+    get_report
+    assert_response :not_found
+  end
+
+  test "an armed report still needs the token" do
     get report_url
     assert_response :not_found
 
     get report_url(params: { token: "wrong" })
     assert_response :not_found
-
-    get report_url(params: { token: "s3cret-token" })
-    assert_response :success
-  ensure
-    ENV.delete("REPORT_TOKEN")
   end
 
-  test "report links carry the token so navigation keeps working" do
-    ENV["REPORT_TOKEN"] = "s3cret-token"
-    zone = Setting.instance.timezone
-    today = Time.current.in_time_zone(zone).to_date
-    Dose.create!(units: 4, kind: :fast, taken_at: Time.current)
-
-    get report_url(params: { token: "s3cret-token" })
-    assert_response :success
-
-    assert_match "token=s3cret-token", response.body
-    assert_match "day=#{today}", response.body
-  ensure
+  test "fails closed when no token is configured anywhere" do
     ENV.delete("REPORT_TOKEN")
+    Setting.instance.update!(report_token: nil)
+
+    get report_url(params: { token: "" })
+    assert_response :not_found
   end
 
-  test "token is not required when REPORT_TOKEN is unset" do
-    get report_url
+  test "a rotated database token replaces the env token" do
+    Setting.instance.update!(report_token: "rotated-token")
+
+    get report_url(params: { token: TOKEN })
+    assert_response :not_found
+
+    get report_url(params: { token: "rotated-token" })
     assert_response :success
+  end
+
+  private
+
+  def get_report(extra = {})
+    get report_url(params: extra.merge(token: TOKEN))
   end
 end

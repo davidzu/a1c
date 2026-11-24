@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_30_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_24_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,6 +89,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_30_000000) do
     t.datetime "created_at", null: false
     t.string "fast_name", default: "Fast", null: false
     t.decimal "last_a1c", precision: 3, scale: 1
+    t.datetime "report_access_until"
+    t.string "report_token"
     t.string "slow_name", default: "Slow", null: false
     t.string "timezone", default: "America/Monterrey", null: false
     t.datetime "updated_at", null: false

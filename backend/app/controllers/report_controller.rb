@@ -2,7 +2,11 @@
 #
 # The one HTML page in an otherwise API-only app (ADR-001 amended by ADR-003).
 # Server-rendered ERB + inline CSS + server-side SVG; printable, no JS.
-# No auth: private URL, single user — same contract as the whole API.
+#
+# Access is a time-boxed switch, not a permanent public URL: the page 404s
+# unless a window is armed (Setting#report_armed?) and the request carries the
+# current token. Arming is done out of band (Api::V1::ReportAccessController
+# or the `a1see-report` script) so the link itself can never turn the page on.
 class ReportController < ActionController::Base
   MAX_DAYS = 90
   DEFAULT_DAYS = 14
@@ -10,9 +14,10 @@ class ReportController < ActionController::Base
   layout "report"
 
   # The report holds a year of health data behind a URL. Keep it out of search
-  # engines, and optionally require a shared token (REPORT_TOKEN).
+  # engines, and answer 404 — never 401 — when the switch is off, so the page's
+  # existence is not confirmed.
   before_action :set_noindex_header
-  before_action :require_report_token
+  before_action :require_report_access
 
   def show
     days = params[:days].present? ? [ [ params[:days].to_i, 1 ].max, MAX_DAYS ].min : DEFAULT_DAYS
@@ -30,16 +35,21 @@ class ReportController < ActionController::Base
     response.set_header("X-Robots-Tag", "noindex, nofollow")
   end
 
-  # Token is optional: with REPORT_TOKEN unset the report stays reachable by
-  # URL (the old contract) but is still marked noindex. When set, a missing or
-  # wrong token is a 404 — not a 401 — so the page's existence is not confirmed.
-  def require_report_token
-    expected = ENV["REPORT_TOKEN"].presence
-    return if expected.nil?
-
+  # Fails closed at every step: no armed window → 404; no token configured →
+  # 404 (never "open because nobody set a secret").
+  def require_report_access
+    setting = Setting.instance
+    expected = setting.effective_report_token
     provided = params[:token].to_s
-    return if provided.present? && ActiveSupport::SecurityUtils.secure_compare(provided, expected)
 
-    head :not_found
+    authorized = setting.report_armed? &&
+      expected.present? &&
+      provided.present? &&
+      ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+
+    return head :not_found unless authorized
+
+    # Only reached with a valid token: the view shows when the link lapses.
+    @access_until = setting.report_access_until
   end
 end
