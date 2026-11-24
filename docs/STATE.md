@@ -53,9 +53,21 @@
   is the armed window alone; a supplied token must still match. Tradeoff
   accepted explicitly: the path is guessable, so the page is only as private
   as the window is short.
-- **Docs:** QA-plan H-01 reworded, H-15 (kill switch), H-16 (arming) and
-  H-17 (permanent path) added; README gained the switch section and the
-  access endpoints.
+- **Country filter (also Sonic's call):** while armed, anonymous visits must
+  come from `REPORT_ALLOWED_COUNTRIES=MX` (Cloudflare's `CF-IPCountry`, set at
+  Render's edge). Verified: allowlist `US` → MX traffic 404; a forged
+  `CF-IPCountry: US` from MX **still** 404s, so the edge overwrites the header
+  and it cannot be spoofed; a valid token bypasses the filter (escape hatch for
+  a mislabelled carrier network). Diagnostics live in `GET /api/v1/report_access`
+  (`allowed_countries`, `your_country`).
+- **Operational gotcha:** env var changes on Render only apply after a
+  **deploy** — `/restart` came back with the old values. Cost 10 minutes today.
+- **Known exposure (pre-slice-8):** `/api/v1/*` has no auth — `GET
+  /api/v1/glucose`, `/doses`, `/settings` return the same data the dashboard
+  shows. The switch and country filter protect the page, not the API.
+- **Docs:** QA-plan H-01 reworded, H-15 (kill switch), H-16 (arming), H-17
+  (permanent path) and H-18 (country filter) added; README gained the switch
+  section, the country filter and the access endpoints.
 - **Audit findings, not yet fixed** (Sonic is reviewing the page before
   deciding): the A1C chart has **zero lab points** — `settings.last_a1c` is
   6.8 but `a1c_entries` is empty, because the upsert only fires when

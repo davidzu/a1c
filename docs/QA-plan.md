@@ -383,6 +383,7 @@ RedMagic unless stated.
 | H-15 | Kill switch | Disarmed → 404 on both paths and with any token; expired window → 404; a supplied token must match when one is configured; armed with no token configured still opens (the switch is the gate) |
 | H-16 | Arming | `PATCH /api/v1/report_access` needs `X-Report-Admin-Secret` (404 otherwise, including with the report token); `{minutes: N}` arms 1 min…7 d, `{enabled: false}` disarms; response carries the permanent `/doctor-dashboard` URL and minutes left |
 | H-17 | Permanent path | `/doctor-dashboard` links keep that path and carry no `token=`; a legacy `/report?token=…` link keeps its token on the next click |
+| H-18 | Country filter | With `REPORT_ALLOWED_COUNTRIES=MX`, an armed window opens for a `CF-IPCountry: MX` request and 404s for any other or missing label; a forged `CF-IPCountry` header is overwritten by the edge and does not pass; a valid token bypasses the filter, a wrong one does not |
 
 ### I. Navigation & lifecycle
 

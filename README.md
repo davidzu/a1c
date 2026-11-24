@@ -83,6 +83,23 @@ opens through `rails runner`. `REPORT_TOKEN` remains the bootstrap token;
 `a1see-report rotate` stores a new one in the database so rotation needs no
 deploy.
 
+The armed window can also be limited by country. Cloudflare labels every
+request at Render's edge with `CF-IPCountry` (a client cannot forge it — the
+edge rewrites the header), so:
+
+```
+REPORT_ALLOWED_COUNTRIES=MX
+```
+
+blocks anonymous visits from anywhere else while the window is open. Unset or
+empty disables the filter (local development). A valid `?token=` still opens
+the page from any country, which is the escape hatch if a carrier mislabels
+your own network. The filter only matters while armed — disarmed, everything
+is 404 anyway.
+
+Changing any env var on Render needs a **deploy**, not just a restart: the
+service comes back with the old values otherwise.
+
 ## Run locally
 
 Backend (PostgreSQL must be running):
