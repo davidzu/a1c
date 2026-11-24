@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# a1see-report — the on/off switch for the doctor report (GET /report).
+# a1see-report — the on/off switch for the doctor dashboard
+# (/doctor-dashboard, also reachable as /report).
 #
 # The report is dark by default. Arming opens it for a bounded window; it
 # closes itself when the window ends, so a forgotten switch cannot leave a
@@ -84,11 +85,11 @@ print_state() { # json
   url=$(jq -r '.url // empty' <<<"$json")
 
   if [[ "$armed" == "true" ]]; then
-    printf 'report is ON — until %s local (%s left)\n' \
+    printf 'dashboard is ON — until %s local (%s left)\n' \
       "$(date -d "$until" '+%a %H:%M %Z')" "$(human_minutes "$left")"
     [[ -n "$url" ]] && printf '%s\n' "$url"
   else
-    printf 'report is OFF — /report answers 404 to everyone\n'
+    printf 'dashboard is OFF — /doctor-dashboard and /report answer 404 to everyone\n'
   fi
 }
 
@@ -116,7 +117,7 @@ case "$cmd" in
     ;;
   url)
     json=$(call GET)
-    [[ "$(jq -r '.armed' <<<"$json")" == "true" ]] || die "report is off — run: a1see-report on 3h"
+    [[ "$(jq -r '.armed' <<<"$json")" == "true" ]] || die "dashboard is off — run: a1see-report on 3h"
     jq -r '.url' <<<"$json"
     ;;
   rotate)
