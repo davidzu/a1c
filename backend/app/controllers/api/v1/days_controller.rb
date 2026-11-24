@@ -3,7 +3,7 @@ module Api
     # The unified day table: one row per local day with insulin, carbs,
     # kcal, and exercise minutes. Powers the app's day bars and the report.
     # Day boundary is midnight in settings.timezone — never UTC.
-    class DaysController < ApplicationController
+    class DaysController < BaseController
       MAX_DAYS = 180
 
       def index

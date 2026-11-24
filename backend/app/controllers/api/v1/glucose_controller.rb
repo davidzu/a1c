@@ -1,6 +1,6 @@
 module Api
   module V1
-    class GlucoseController < ApplicationController
+    class GlucoseController < BaseController
       MAX_HOURS = 336
 
       def index

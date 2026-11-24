@@ -3,7 +3,7 @@ module Api
     # Ingest for Health Connect data uploaded by the Android app. Accepts a
     # single object or an array. Idempotent on client_id: first POST wins,
     # retries are free and never duplicate a row.
-    class ActivitiesController < ApplicationController
+    class ActivitiesController < BaseController
       def create
         records = Array.wrap(params[:_json].presence || params[:activity] || params)
         built = records.filter_map { |r| build_session(r) }

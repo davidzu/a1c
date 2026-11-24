@@ -3,7 +3,7 @@ module Api
     # Ingest for food entries from Health Connect (via the Android app) or a
     # later quick-add. Accepts a single object or an array. Idempotent on
     # client_id: first POST wins.
-    class NutritionController < ApplicationController
+    class NutritionController < BaseController
       def create
         records = Array.wrap(params[:_json].presence || params[:nutrition] || params)
         built = records.filter_map { |r| build_entry(r) }

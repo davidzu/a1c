@@ -73,6 +73,7 @@ module Api
           # Diagnostics for the country filter: what this process was booted
           # with, and what the edge says about the caller of *this* request.
           allowed_countries: ENV["REPORT_ALLOWED_COUNTRIES"].to_s,
+          api_allowed_countries: ENV["API_ALLOWED_COUNTRIES"].to_s,
           your_country: request.headers["CF-IPCountry"].to_s
         }
       end

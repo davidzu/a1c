@@ -2,7 +2,7 @@ module Api
   module V1
     # Nightscout-compatible ingest. xDrip+ uploads here.
     # Accepts a single entry or an array; only sgv/mbg entries are stored.
-    class EntriesController < ApplicationController
+    class EntriesController < BaseController
       def create
         return render_error(code: "unauthorized", message: "Bad api-secret", status: :unauthorized) if secret_required? && !secret_valid?
 

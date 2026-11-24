@@ -1,6 +1,6 @@
 module Api
   module V1
-    class SettingsController < ApplicationController
+    class SettingsController < BaseController
       def show
         render json: { settings: settings_payload(Setting.instance) }
       end

@@ -1,6 +1,6 @@
 module Api
   module V1
-    class DosesController < ApplicationController
+    class DosesController < BaseController
       # Upper bound for the graph window; the default comes from deploy config
       # (DOSES_HISTORY_DAYS) so the payload never grows with account age.
       MAX_DAYS = 366
