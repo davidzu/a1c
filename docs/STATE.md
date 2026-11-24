@@ -47,8 +47,15 @@
   armed → 404; armed → 200 with "link live until HH:MM" in the header;
   day detail 200; `off` → 404; arm 1 min → 200, then 404 after 70 s.
   Tests 94 runs / 308 assertions green; rubocop clean.
-- **Docs:** QA-plan H-01 reworded, H-15 (kill switch) and H-16 (arming)
-  added; README gained the switch section and the access endpoints.
+- **Permanent address (follow-up, Sonic's call):**
+  `https://a1c-api.onrender.com/doctor-dashboard` — clean path, no token to
+  paste, `/report` kept as an alias for links that already carry one. Access
+  is the armed window alone; a supplied token must still match. Tradeoff
+  accepted explicitly: the path is guessable, so the page is only as private
+  as the window is short.
+- **Docs:** QA-plan H-01 reworded, H-15 (kill switch), H-16 (arming) and
+  H-17 (permanent path) added; README gained the switch section and the
+  access endpoints.
 - **Audit findings, not yet fixed** (Sonic is reviewing the page before
   deciding): the A1C chart has **zero lab points** — `settings.last_a1c` is
   6.8 but `a1c_entries` is empty, because the upsert only fires when

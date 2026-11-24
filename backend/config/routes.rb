@@ -2,6 +2,8 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
 
   get "report", to: "report#show"
+  # The permanent, token-free address for the same page (armed window required).
+  get "doctor-dashboard", to: "report#show"
 
   namespace :api do
     namespace :v1 do

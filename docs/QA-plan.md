@@ -366,7 +366,7 @@ RedMagic unless stated.
 
 | ID | Case | Expected |
 |---|---|---|
-| H-01 | `GET /report` | 200 only inside an armed window **and** with `?token=`; otherwise 404 (see H-15). One page, light theme, inline CSS/SVG, no JS |
+| H-01 | `GET /doctor-dashboard` | 200 only inside an armed window; otherwise 404 (see H-15). No token needed. One page, light theme, inline CSS/SVG, no JS |
 | H-02 | Defaults and clamps | 14 days default, `1 ≤ days ≤ 90` |
 | H-03 | Core metrics | Days of data, % active, mean, GMI (`3.31 + 0.02392 × mean`), CV, TIR stack |
 | H-04 | GMI math | Hand-computed mean → GMI matches to 0.1 |
@@ -380,8 +380,9 @@ RedMagic unless stated.
 | H-12 | Print | US Letter/A4, readable at 100 %, page breaks do not split a chart, `< 3` pages for 14 days |
 | H-13 | Units | mg/dL everywhere (the app stays mmol/L) |
 | H-14 | Privacy | Not indexed, not cached publicly, no PHI in the URL |
-| H-15 | Kill switch | Disarmed → 404 with a correct token; expired window → 404; armed + wrong/missing token → 404; no token configured anywhere → 404 (fails closed) |
-| H-16 | Arming | `PATCH /api/v1/report_access` needs `X-Report-Admin-Secret` (404 otherwise, including with the report token); `{minutes: N}` arms 1 min…7 d, `{enabled: false}` disarms; response carries the live URL and minutes left |
+| H-15 | Kill switch | Disarmed → 404 on both paths and with any token; expired window → 404; a supplied token must match when one is configured; armed with no token configured still opens (the switch is the gate) |
+| H-16 | Arming | `PATCH /api/v1/report_access` needs `X-Report-Admin-Secret` (404 otherwise, including with the report token); `{minutes: N}` arms 1 min…7 d, `{enabled: false}` disarms; response carries the permanent `/doctor-dashboard` URL and minutes left |
+| H-17 | Permanent path | `/doctor-dashboard` links keep that path and carry no `token=`; a legacy `/report?token=…` link keeps its token on the next click |
 
 ### I. Navigation & lifecycle
 

@@ -1,12 +1,18 @@
-# GET /report — the doctor report (slice 7, per docs/ADR-003-activity-nutrition.md).
+# GET /doctor-dashboard (and the older /report) — the doctor report
+# (slice 7, per docs/ADR-003-activity-nutrition.md).
 #
 # The one HTML page in an otherwise API-only app (ADR-001 amended by ADR-003).
 # Server-rendered ERB + inline CSS + server-side SVG; printable, no JS.
 #
 # Access is a time-boxed switch, not a permanent public URL: the page 404s
-# unless a window is armed (Setting#report_armed?) and the request carries the
-# current token. Arming is done out of band (Api::V1::ReportAccessController
-# or the `a1see-report` script) so the link itself can never turn the page on.
+# unless a window is armed (Setting#report_armed?). Arming is done out of band
+# (Api::V1::ReportAccessController or the `a1see-report` script) so the page
+# can never turn itself on.
+#
+# The token is optional and only checked when supplied: the clean URL
+# /doctor-dashboard needs nothing but an armed window, while a link that
+# already carries ?token= must carry the right one. The switch is the gate —
+# the path is guessable, so the armed window is what keeps the page dark.
 class ReportController < ActionController::Base
   MAX_DAYS = 90
   DEFAULT_DAYS = 14
@@ -35,21 +41,23 @@ class ReportController < ActionController::Base
     response.set_header("X-Robots-Tag", "noindex, nofollow")
   end
 
-  # Fails closed at every step: no armed window → 404; no token configured →
-  # 404 (never "open because nobody set a secret").
+  # Fails closed on the switch: no armed window → 404, whichever path and
+  # whichever token. A token, when one is configured and supplied, must match;
+  # a stale token 404s loudly instead of quietly working.
   def require_report_access
     setting = Setting.instance
+    return head :not_found unless setting.report_armed?
+
     expected = setting.effective_report_token
     provided = params[:token].to_s
 
-    authorized = setting.report_armed? &&
-      expected.present? &&
-      provided.present? &&
-      ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+    if expected.present? && provided.present?
+      unless ActiveSupport::SecurityUtils.secure_compare(provided, expected)
+        return head :not_found
+      end
+    end
 
-    return head :not_found unless authorized
-
-    # Only reached with a valid token: the view shows when the link lapses.
+    # Reached with an armed window: the view shows when the link lapses.
     @access_until = setting.report_access_until
   end
 end

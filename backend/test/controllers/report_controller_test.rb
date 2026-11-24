@@ -1,7 +1,8 @@
 require "test_helper"
 
-# The report is closed by default and only opens inside an armed window with
-# the current token. Every content test therefore arms a window in setup.
+# The report is closed by default and only opens inside an armed window.
+# /doctor-dashboard is the permanent address and needs nothing but the switch;
+# /report still honours a ?token= link if one is supplied.
 class ReportControllerTest < ActionDispatch::IntegrationTest
   TOKEN = "test-report-token"
 
@@ -102,7 +103,7 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     assert_match "link live until #{until_time}", response.body
   end
 
-  test "report links carry the token so navigation keeps working" do
+  test "navigation stays on the permanent path without a token" do
     zone = Setting.instance.timezone
     today = Time.current.in_time_zone(zone).to_date
     Dose.create!(units: 4, kind: :fast, taken_at: Time.current)
@@ -110,43 +111,63 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     get_report
     assert_response :success
 
-    assert_match "token=#{TOKEN}", response.body
     assert_match "day=#{today}", response.body
+    refute_match "token=", response.body
+    assert_match "href=\"/doctor-dashboard?", response.body
+  end
+
+  test "a legacy token link keeps its token and keeps working" do
+    get report_url(params: { token: TOKEN })
+    assert_response :success
+
+    assert_match "token=#{TOKEN}", response.body
   end
 
   # ---- the switch ---------------------------------------------------------
 
+  test "the permanent url needs an armed window, no token" do
+    Setting.instance.disarm_report!
+
+    get doctor_dashboard_url
+    assert_response :not_found
+
+    Setting.instance.arm_report!(60)
+
+    get doctor_dashboard_url
+    assert_response :success
+  end
+
   test "a disarmed report is a 404 even with the right token" do
     Setting.instance.disarm_report!
 
-    get_report
+    get report_url(params: { token: TOKEN })
     assert_response :not_found
   end
 
-  test "an expired window is a 404 even with the right token" do
+  test "an expired window is a 404" do
     Setting.instance.update!(report_access_until: 1.minute.ago)
 
-    get_report
+    get doctor_dashboard_url
     assert_response :not_found
   end
 
-  test "an armed report still needs the token" do
-    get report_url
-    assert_response :not_found
-
+  test "a supplied token must match when one is configured" do
     get report_url(params: { token: "wrong" })
     assert_response :not_found
+
+    get report_url(params: { token: TOKEN })
+    assert_response :success
   end
 
-  test "fails closed when no token is configured anywhere" do
+  test "an armed report with no token configured still opens" do
     ENV.delete("REPORT_TOKEN")
     Setting.instance.update!(report_token: nil)
 
-    get report_url(params: { token: "" })
-    assert_response :not_found
+    get doctor_dashboard_url
+    assert_response :success
   end
 
-  test "a rotated database token replaces the env token" do
+  test "a rotated database token invalidates the old token, not the clean url" do
     Setting.instance.update!(report_token: "rotated-token")
 
     get report_url(params: { token: TOKEN })
@@ -154,11 +175,14 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
 
     get report_url(params: { token: "rotated-token" })
     assert_response :success
+
+    get doctor_dashboard_url
+    assert_response :success
   end
 
   private
 
   def get_report(extra = {})
-    get report_url(params: extra.merge(token: TOKEN))
+    get doctor_dashboard_url(params: extra)
   end
 end

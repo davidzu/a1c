@@ -55,17 +55,19 @@ v2 ADRs: `glucose_readings` (Nightscout ingest), `activity_sessions`,
 | POST | `/api/v1/nutrition` | Food-entry ingest (single or array, idempotent `client_id`) |
 | GET | `/api/v1/nutrition?hours=N` | Food entries ascending (default 24 h, max 336) |
 | GET | `/api/v1/days?days=N` | Unified per-day totals: insulin fast/slow/total · carbs g · kcal · exercise min (default 30, max 180) |
-| GET | `/report?days=N` | Printable doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90). **404s unless armed** with `?token=` (see below) |
+| GET | `/doctor-dashboard?days=N` | The permanent address of the doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90). **404s unless armed** (see below); no token needed |
+| GET | `/report?days=N` | Same page, kept for links that already carry `?token=` (a supplied token must match) |
 | GET | `/api/v1/report_access` | Report switch state: `armed`, `until`, `minutes_left`, live `url`. Needs `X-Report-Admin-Secret` |
 | PATCH | `/api/v1/report_access` | Arm (`{"minutes": 180}`) or disarm (`{"enabled": false}`) the report. Needs `X-Report-Admin-Secret` |
 | POST | `/api/v1/report_access/rotate` | New report token; links shared earlier stop working |
 
 ### The doctor report is off by default
 
-`GET /report` answers **404** unless a window is armed *and* the URL carries
-the current token. Windows lapse on their own, so a forgotten "on" cannot
-leave months of health data readable. Arming is out of band — the report link
-itself can never turn the page on:
+`/doctor-dashboard` (and `/report`) answer **404** unless a window is armed.
+Windows lapse on their own, so a forgotten "on" cannot leave months of health
+data readable. Arming is out of band — the page itself can never turn itself
+on. The path is guessable, so the armed window is what keeps it dark; a
+`?token=` is optional and only validated when supplied:
 
 ```bash
 scripts/a1see-report on 3h    # arm, prints the link

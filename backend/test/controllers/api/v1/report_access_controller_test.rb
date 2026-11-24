@@ -51,7 +51,7 @@ class Api::V1::ReportAccessControllerTest < ActionDispatch::IntegrationTest
 
     body = response.parsed_body
     assert_equal true, body["armed"]
-    assert_includes body["url"], "/report?token=report-token"
+    assert_equal "http://www.example.com/doctor-dashboard", body["url"]
     assert_in_delta 90, body["minutes_left"], 2
     assert_in_delta 90.minutes.from_now.to_i, Time.zone.parse(body["until"]).to_i, 5
   end
@@ -87,21 +87,23 @@ class Api::V1::ReportAccessControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "rotating the token invalidates the old url" do
+  test "rotating the token kills old token links, not the permanent url" do
     Setting.instance.arm_report!(60)
-    old_url = get_url_from_status
+
+    get report_url(params: { token: "report-token" })
+    assert_response :success
 
     post rotate_api_v1_report_access_url, headers: auth
     assert_response :success
+    assert_equal "http://www.example.com/doctor-dashboard", response.parsed_body["url"]
 
-    new_url = response.parsed_body["url"]
-    refute_equal old_url, new_url
-
-    get new_url
-    assert_response :success
-
-    get old_url
+    # The token the user had stops working...
+    get report_url(params: { token: "report-token" })
     assert_response :not_found
+
+    # ...but the permanent, token-free address still opens.
+    get doctor_dashboard_url
+    assert_response :success
   end
 
   test "the report token alone cannot arm the page" do
@@ -116,10 +118,5 @@ class Api::V1::ReportAccessControllerTest < ActionDispatch::IntegrationTest
 
   def auth
     { "X-Report-Admin-Secret" => SECRET }
-  end
-
-  def get_url_from_status
-    get api_v1_report_access_url, headers: auth
-    response.parsed_body["url"]
   end
 end

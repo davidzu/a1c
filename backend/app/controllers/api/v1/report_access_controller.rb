@@ -69,15 +69,13 @@ module Api
           armed: setting.report_armed?,
           until: setting.report_access_until&.iso8601,
           minutes_left: setting.report_minutes_left,
-          url: setting.report_armed? ? report_url_with_token(setting) : nil
+          url: setting.report_armed? ? report_url : nil
         }
       end
 
-      def report_url_with_token(setting)
-        token = setting.effective_report_token
-        return nil if token.blank?
-
-        "#{request.base_url}/report?token=#{token}"
+      def report_url
+        # The permanent address: no token in it, gated by the armed window.
+        "#{request.base_url}/doctor-dashboard"
       end
     end
   end
