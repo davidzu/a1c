@@ -69,7 +69,11 @@ module Api
           armed: setting.report_armed?,
           until: setting.report_access_until&.iso8601,
           minutes_left: setting.report_minutes_left,
-          url: setting.report_armed? ? report_url : nil
+          url: setting.report_armed? ? report_url : nil,
+          # Diagnostics for the country filter: what this process was booted
+          # with, and what the edge says about the caller of *this* request.
+          allowed_countries: ENV["REPORT_ALLOWED_COUNTRIES"].to_s,
+          your_country: request.headers["CF-IPCountry"].to_s
         }
       end
 
