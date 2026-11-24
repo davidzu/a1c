@@ -90,6 +90,71 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
     assert_match "GMI trend", response.body
   end
 
+  test "TBR and TAR appear as cards in percent with their goals" do
+    # 60 (below), 100 + 150 (in range), 300 (above) → TBR 25%, TAR 25%.
+    [ 60, 100, 150, 300 ].each_with_index do |sgv, i|
+      GlucoseReading.create!(sgv: sgv, time: (i + 1).hours.ago)
+    end
+
+    get_report
+    assert_response :success
+
+    assert_match "TBR · below 70", response.body
+    assert_match "TAR · above 180", response.body
+    assert_match %(<div class="value flag-bad">25.0%</div>), response.body
+    assert_match "goal &lt; 4%", response.body
+    assert_match "goal &lt; 25%", response.body
+  end
+
+  test "days of data is a legend under the cards, not a card" do
+    GlucoseReading.create!(sgv: 120, time: 1.hour.ago)
+
+    get_report
+    assert_response :success
+
+    assert_match "Days of data:", response.body
+    refute_match %(<div class="label">Days of data</div>), response.body
+  end
+
+  test "the A1C chart is anchored to the last lab draw" do
+    A1cEntry.create!(measured_on: 10.days.ago.to_date, value: 7.2)
+    GlucoseReading.create!(sgv: 150, time: 1.hour.ago)
+
+    get_report(days: 14)
+    assert_response :success
+
+    # Legend under the graph, with value and date.
+    assert_match "Last A1C: 7.2%", response.body
+    assert_match 10.days.ago.to_date.to_s, response.body
+
+    # The lab value is a line across the graph, labelled.
+    assert_match "lab 7.2%", response.body
+
+    # Y axis is explained.
+    assert_match "A1C / GMI (%)", response.body
+  end
+
+  test "the A1C chart starts at the report window when there is no lab" do
+    GlucoseReading.create!(sgv: 150, time: 1.hour.ago)
+
+    get_report(days: 7)
+    assert_response :success
+
+    assert_match "A1C history", response.body
+    refute_match "Last A1C:", response.body
+  end
+
+  test "daily context is the last block on the page" do
+    Dose.create!(units: 4, kind: :fast, taken_at: Time.current)
+
+    get_report
+    assert_response :success
+
+    # "footnote" also appears in the layout CSS, so compare against its text.
+    assert_operator response.body.index("A1C history"), :<, response.body.index("Daily context")
+    assert_operator response.body.index("Daily context"), :<, response.body.index("Units: mg/dL")
+  end
+
   test "marks the page noindex in headers and markup" do
     get_report
 

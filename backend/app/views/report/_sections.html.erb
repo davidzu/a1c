@@ -1,38 +1,16 @@
-<h2>Daily context</h2>
-<% if @report.day_rows.empty? %>
-  <div class="empty">No doses, meals, or workouts in this window.</div>
-<% else %>
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th><th>Fast u</th><th>Slow u</th><th>Total u</th>
-        <th>Carbs g</th><th>kcal</th><th>Exercise min</th>
-      </tr>
-    </thead>
-    <tbody>
-      <% @report.day_rows.each do |row| %>
-        <tr>
-          <td><%= link_to row[:date], report_link(days: @report.days, day: row[:date]), class: "daylink" %></td>
-          <td><%= row[:fast_units] %></td>
-          <td><%= row[:slow_units] %></td>
-          <td><%= row[:total_units] %></td>
-          <td><%= row[:carbs_g] %></td>
-          <td><%= row[:calories_kcal] %></td>
-          <td><%= row[:exercise_min] %></td>
-        </tr>
-      <% end %>
-    </tbody>
-  </table>
-<% end %>
-
 <h2>A1C history</h2>
 <% if @report.a1c_history.empty? && @report.gmi_trend.empty? %>
   <div class="empty">No A1C entries or glucose-derived GMI yet.</div>
 <% else %>
-  <div class="chart"><%= ReportHelper.a1c_svg(@report.a1c_history, @report.gmi_trend) %></div>
+  <% last_a1c = @report.a1c_history.last %>
+  <div class="chart"><%= ReportHelper.a1c_svg(@report.a1c_history, @report.gmi_trend, start_date: @report.a1c_chart_start, end_date: @report.end_date) %></div>
   <div class="tir-legend">
+    <% if last_a1c %>
+      <span class="legend-key"><strong>Last A1C: <%= last_a1c[:value] %>%</strong> · <%= last_a1c[:measured_on] %></span>
+    <% end %>
     <span><span class="swatch" style="background:#7c3aed"></span>lab A1C</span>
     <span><span class="swatch" style="background:#a78bfa"></span>GMI trend (from CGM mean)</span>
+    <span class="axis-note">Y axis: A1C / GMI in % · GMI = 3.31 + 0.02392 × mean glucose</span>
   </div>
 <% end %>
 
@@ -73,6 +51,33 @@
     </tbody>
   </table>
   <p><%= link_to "← Back to full report", report_link(days: @report.days), class: "backlink" %></p>
+<% end %>
+
+<h2>Daily context</h2>
+<% if @report.day_rows.empty? %>
+  <div class="empty">No doses, meals, or workouts in this window.</div>
+<% else %>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th><th>Fast u</th><th>Slow u</th><th>Total u</th>
+        <th>Carbs g</th><th>kcal</th><th>Exercise min</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @report.day_rows.each do |row| %>
+        <tr>
+          <td><%= link_to row[:date], report_link(days: @report.days, day: row[:date]), class: "daylink" %></td>
+          <td><%= row[:fast_units] %></td>
+          <td><%= row[:slow_units] %></td>
+          <td><%= row[:total_units] %></td>
+          <td><%= row[:carbs_g] %></td>
+          <td><%= row[:calories_kcal] %></td>
+          <td><%= row[:exercise_min] %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
 <% end %>
 
 <div class="footnote">

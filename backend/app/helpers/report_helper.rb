@@ -98,31 +98,57 @@ module ReportHelper
     svg.html_safe
   end
 
-  # A1C history: lab points (squares) + GMI trend line.
-  def self.a1c_svg(history, trend, width: 720, height: 200)
+  # A1C history: the GMI trend from CGM means, with each lab A1C drawn as a
+  # horizontal reference line across the graph. The window starts at the last
+  # lab date (so the lab value and the trend share one axis) and runs to the
+  # report's end date; with no lab on file it starts at the report window.
+  def self.a1c_svg(history, trend, start_date:, end_date:, width: 720, height: 220)
     return "".html_safe if history.empty? && trend.empty?
 
     top = 14
     bottom = 24
-    left = 34
-    right = 10
-    all = (history.map { |h| h[:value] } + trend.map { |t| t[:gmi] })
+    left = 46 # room for the rotated axis title
+    right = 12
+
+    t0 = start_date
+    t1 = end_date
+    points = trend.select do |t|
+      date = Date.parse(t[:date])
+      date >= t0 && date <= t1
+    end
+
+    all = history.map { |h| h[:value] } + points.map { |t| t[:gmi] }
     lo = [ (all.min - 0.5), 4.0 ].max.floor
     hi = (all.max + 0.5).ceil
     y = y_scale(height, top, bottom, lo, hi)
-    t0 = (history.map { |h| h[:measured_on] } + trend.map { |t| t[:date] }).min
-    t1 = (history.map { |h| h[:measured_on] } + trend.map { |t| t[:date] }).max
-    x = ->(d) { left + (Date.parse(d) - Date.parse(t0)).fdiv([ Date.parse(t1) - Date.parse(t0), 1 ].max) * (width - left - right) }
+    span = [ (t1 - t0).to_i, 1 ].max
+    x = ->(d) { left + (d - t0).fdiv(span) * (width - left - right) }
 
     svg = +"<svg viewBox=\"0 0 #{width} #{height}\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"A1C history with GMI trend\">"
-    coords = trend.map { |t| "#{x.call(t[:date]).round(1)},#{y.call(t[:gmi]).round(1)}" }
-    svg << %(<polyline points="#{coords.join(" ")}" fill="none" stroke="#a78bfa" stroke-width="1.4" stroke-dasharray="3 2"/>) if coords.size > 1
-    history.each do |h|
-      svg << %(<rect x="#{(x.call(h[:measured_on]) - 4).round(1)}" y="#{(y.call(h[:value]) - 4).round(1)}" width="8" height="8" fill="#7c3aed"/>)
-      svg << %(<text x="#{x.call(h[:measured_on]).round(1)}" y="#{(y.call(h[:value]) - 8).round(1)}" font-size="9" fill="#7c3aed" text-anchor="middle">#{h[:value]}</text>)
+
+    # y grid: one line per percentage point, labelled
+    (lo..hi).each do |value|
+      yy = y.call(value).round(1)
+      svg << %(<line x1="#{left}" y1="#{yy}" x2="#{width - right}" y2="#{yy}" stroke="#ececec" stroke-width="1"/>)
+      svg << %(<text x="#{left - 4}" y="#{yy + 3}" font-size="9" fill="#999" text-anchor="end">#{value}</text>)
     end
-    svg << %(<text x="#{left - 4}" y="#{(y.call(lo + 0.2) + 3).round(1)}" font-size="9" fill="#999" text-anchor="end">#{lo}</text>)
-    svg << %(<text x="#{left - 4}" y="#{(y.call(hi - 0.2) + 3).round(1)}" font-size="9" fill="#999" text-anchor="end">#{hi}</text>)
+
+    # GMI trend from the daily CGM mean
+    coords = points.map { |t| "#{x.call(Date.parse(t[:date])).round(1)},#{y.call(t[:gmi]).round(1)}" }
+    svg << %(<polyline points="#{coords.join(" ")}" fill="none" stroke="#a78bfa" stroke-width="1.4" stroke-dasharray="3 2"/>) if coords.size > 1
+
+    # lab A1C as a line along the graph, labelled at the right edge
+    history.each do |h|
+      value = h[:value]
+      yy = y.call(value).round(1)
+      svg << %(<line x1="#{left}" y1="#{yy}" x2="#{width - right}" y2="#{yy}" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="7 3"/>)
+      svg << %(<text x="#{width - right - 2}" y="#{yy - 4}" font-size="9" fill="#7c3aed" text-anchor="end">lab #{value}%</text>)
+    end
+
+    # y axis title + explanation, rotated along the left edge
+    svg << %(<text transform="translate(11, #{height / 2}) rotate(-90)" font-size="9" fill="#6b6b6b" text-anchor="middle">A1C / GMI (%)</text>)
+
+    # x axis ends
     svg << %(<text x="#{left}" y="#{height - 8}" font-size="9" fill="#999">#{t0}</text>)
     svg << %(<text x="#{width - right}" y="#{height - 8}" font-size="9" fill="#999" text-anchor="end">#{t1}</text>)
     svg << "</svg>"

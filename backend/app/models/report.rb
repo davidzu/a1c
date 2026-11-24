@@ -91,6 +91,25 @@ class Report
     end
   end
 
+  # TBR / TAR as one percentage each — the two numbers a consult opens with.
+  # TBR = below 70 (levels 1 + 2), TAR = above 180 (levels 1 + 2).
+  def tbr
+    tir = time_in_range
+    (tir[:below_l1] + tir[:below_l2]).round(1)
+  end
+
+  def tar
+    tir = time_in_range
+    (tir[:above_l1] + tir[:above_l2]).round(1)
+  end
+
+  # Where the A1C chart begins: the last lab draw, so the lab value and the
+  # GMI trend share one axis. With no lab on file it starts at the window.
+  def a1c_chart_start
+    last = a1c_history.last
+    last ? Date.parse(last[:measured_on]) : @start_date
+  end
+
   # ---- AGP 24-hour profile ------------------------------------------------
 
   # All days collapsed into one 24-hour profile, bucketed by local time of

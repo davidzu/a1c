@@ -17,16 +17,22 @@
 <% if @report.readings_count.zero? %>
   <div class="empty">No CGM readings in this window yet.</div>
 <% else %>
+  <% tir = @report.time_in_range %>
   <div class="metrics-grid">
     <div class="metric">
-      <div class="label">Days of data</div>
-      <div class="value"><%= @report.days_of_data %></div>
-      <div class="goal">of <%= @report.days %> in window</div>
+      <div class="label">Time in range</div>
+      <div class="value <%= tir[:in_range] >= 70 ? "flag-good" : "flag-bad" %>"><%= tir[:in_range] %>%</div>
+      <div class="goal">goal &gt; 70%</div>
     </div>
     <div class="metric">
-      <div class="label">% time active</div>
-      <div class="value"><%= @report.pct_time_active %>%</div>
-      <div class="goal">readings vs 5-min sampling</div>
+      <div class="label">TBR · below 70</div>
+      <div class="value <%= @report.tbr > 4 ? "flag-bad" : "flag-good" %>"><%= @report.tbr %>%</div>
+      <div class="goal">goal &lt; 4%</div>
+    </div>
+    <div class="metric">
+      <div class="label">TAR · above 180</div>
+      <div class="value <%= @report.tar > 25 ? "flag-bad" : "flag-good" %>"><%= @report.tar %>%</div>
+      <div class="goal">goal &lt; 25%</div>
     </div>
     <div class="metric">
       <div class="label">Mean glucose</div>
@@ -44,9 +50,13 @@
       <div class="goal">goal ≤ 36%</div>
     </div>
   </div>
+  <div class="metrics-legend">
+    Days of data: <strong><%= @report.days_of_data %></strong> of <%= @report.days %> in window
+    · % time active: <%= @report.pct_time_active %>% of the expected 5-minute buckets
+    · TBR = time below 70 mg/dL · TAR = time above 180 mg/dL
+  </div>
 
   <h2>Time in range</h2>
-  <% tir = @report.time_in_range %>
   <div class="tir-bar">
     <div style="width:<%= tir[:below_l2] %>% ; background:var(--tbr-l2)"></div>
     <div style="width:<%= tir[:below_l1] %>% ; background:var(--tbr)"></div>
@@ -55,11 +65,11 @@
     <div style="width:<%= tir[:above_l2] %>% ; background:var(--tar-l2)"></div>
   </div>
   <div class="tir-legend">
-    <span><span class="swatch" style="background:var(--tbr-l2)"></span><54 · <%= tir[:below_l2] %>% (goal <1%)</span>
-    <span><span class="swatch" style="background:var(--tbr)"></span>54–69 · <%= tir[:below_l1] %>% (goal <4%)</span>
-    <span><span class="swatch" style="background:var(--in-range)"></span>70–180 · <%= tir[:in_range] %>% (goal >70%)</span>
-    <span><span class="swatch" style="background:var(--tar)"></span>181–250 · <%= tir[:above_l1] %>% (goal <25%)</span>
-    <span><span class="swatch" style="background:var(--tar-l2)"></span>>250 · <%= tir[:above_l2] %>% (goal <5%)</span>
+    <span><span class="swatch" style="background:var(--tbr-l2)"></span><54 · <%= tir[:below_l2] %>% (goal &lt;1%)</span>
+    <span><span class="swatch" style="background:var(--tbr)"></span>54–69 · <%= tir[:below_l1] %>% (goal &lt;4%)</span>
+    <span><span class="swatch" style="background:var(--in-range)"></span>70–180 · <%= tir[:in_range] %>% (goal &gt;70%)</span>
+    <span><span class="swatch" style="background:var(--tar)"></span>181–250 · <%= tir[:above_l1] %>% (goal &lt;25%)</span>
+    <span><span class="swatch" style="background:var(--tar-l2)"></span>&gt;250 · <%= tir[:above_l2] %>% (goal &lt;5%)</span>
   </div>
 
   <h2>AGP · 24-hour median profile</h2>
