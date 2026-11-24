@@ -387,9 +387,9 @@ RedMagic unless stated.
 | H-07 | AGP | 96 buckets, percentile band, median line, 70–180 band |
 | H-08 | Day table | Insulin fast/slow/total, carbs, kcal, exercise per local day |
 | H-09 | Day detail | Clicking a date opens that day's curve with dose/meal/workout markers; out-of-window date → 404 |
-| H-10 | A1C history | Lab points plus GMI trend; one lab point still renders |
+| H-10 | A1C history | Chart starts at the last lab draw (window start when no lab); lab A1C drawn as a labelled horizontal line plus a vertical mark on its date; GMI trend as a dashed line with a dot per day; y labelled every half point; x labelled every 2 days / 2 weeks in `Sep 14` form; legend carries `Last A1C: value · date` |
 | H-11 | No data | Empty states, no divide-by-zero, no `NaN` |
-| H-12 | Print | US Letter/A4, readable at 100 %, page breaks do not split a chart, `< 3` pages for 14 days |
+| H-12 | Print | US Letter/A4, readable at 100 %, page breaks do not split a chart or the daily table, `< 3` pages for 14 days |
 | H-13 | Units | mg/dL everywhere (the app stays mmol/L) |
 | H-14 | Privacy | Not indexed, not cached publicly, no PHI in the URL |
 | H-15 | Kill switch | Disarmed → 404 on both paths and with any token; expired window → 404; a supplied token must match when one is configured; armed with no token configured still opens (the switch is the gate) |

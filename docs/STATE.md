@@ -78,9 +78,20 @@
   both `cf-cache-status: DYNAMIC`. No PHI sits in a shared edge cache.
 - **Still open (pre-slice-8):** there is no per-user auth. The country gate is
   a net, not a lock: anyone in Mexico still reads `/api/v1/*`.
-- **Docs:** QA-plan H-01 reworded, H-15 (kill switch), H-16 (arming), H-17
-  (permanent path) and H-18 (country filter) added; README gained the switch
-  section, the country filter and the access endpoints.
+- **Page review round 1 (same evening, four notes):** days-of-data moved from
+  a card to a legend line; TBR (<70) and TAR (>180) cards added in percent
+  with ADA goals; daily context moved to the bottom; A1C history rebuilt
+  (anchored to the last lab, lab value as a labelled line, y axis explained).
+  Then round 2: half-point y gridlines, x labels every 2 days / 2 weeks in
+  compact form, a dot per daily GMI point, chart height 220 -> 300.
+- **A1C backfill:** `a1c_entries` row 1 = 2026-09-14, 6.8 % (Sonic's lab
+  result), inserted directly with psql after the dump. `settings.last_a1c`
+  was already 6.8 but the upsert only fires on change, so the series was
+  empty; the chart now starts at the draw.
+- **Docs:** QA-plan H-01 reworded, H-10 and H-12 tightened, H-15 (kill
+  switch), H-16 (arming), H-17 (permanent path) and H-18 (country filter)
+  added; README gained the switch section, the country filter and the access
+  endpoints.
 - **Audit findings, not yet fixed** (Sonic is reviewing the page before
   deciding): the A1C chart has **zero lab points** — `settings.last_a1c` is
   6.8 but `a1c_entries` is empty, because the upsert only fires when
