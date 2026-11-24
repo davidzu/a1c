@@ -1,21 +1,23 @@
 # A1See — session state
 
-## Current state — 2026-11-12 (session end)
+## Current state — 2026-11-24 (session end)
 
 - **Repo:** `~/Work/A1See` on `main`, clean, synced with origin. The
   `fix/qa-blockers` worktree was retired; all QA work is merged into `main`.
-- **Deployed API:** Render live on `fc6f0e1` (docs commits use
-  `[skip render]`). `REPORT_TOKEN` enabled — value in `.env.local`, not git.
-  `DOSES_HISTORY_DAYS=10`.
+- **Deployed API:** Render live on `514b433` (`main`). `REPORT_TOKEN` enabled
+  — value in `.env.local`, not git. `DOSES_HISTORY_DAYS=10`.
+  `REPORT_ADMIN_SECRET` set on Render and in `.env.local` (switch for
+  `/report`, see 2026-11-24 below).
 - **Phone:** A1See **0.6.2** (versionCode 8). xDrip + Juggluco both allowed
   in RedMagic battery management (auto-start, secondary launch, background
   running). xDrip uploads; Juggluco is the sensor reader/broadcaster.
-- **Verified today:** `/days` calendar window, numeric JSON payloads, 404
-  error envelope, report token (404/404/200 + noindex), ±30 s dedupe +
-  5-min-bucket metric (80 tests / 266 assertions), and xDrip background
-  delivery — **overnight confirmed 2026-11-12**: 108/108 readings from
-  22:00–06:40, 24 h coverage 90.6%, only 3 short daytime gaps.
-- **Open:** the 0.6.2 Health Connect status line and missing-permission UI
+- **Verified today:** the `/report` kill switch end to end on the live URL
+  (disarmed 404 → armed 200 → self-expiry 404), suite at 94 runs / 308
+  assertions. Still standing from 2026-11-12: ±30 s dedupe, 5-min-bucket
+  metric, and xDrip background delivery — 108/108 readings 22:00–06:40,
+  24 h coverage 90.6%, 3 short daytime gaps.
+- **Open:** Sonic's page review before any report polish (see 2026-11-24
+  findings); the 0.6.2 Health Connect status line and missing-permission UI
   not yet seen on device; one test glucose row to delete; QA findings
   F-15…F-25.
 - **Next:** (1) tomorrow morning, check last night's coverage; (2) if the
@@ -23,6 +25,39 @@
   to Juggluco; (3) QA F-15 (TIR flags), F-16 (HC kcal double count),
   F-18 (clock ticking), F-19 (form state on rejection); (4) slice 8
   (ADR-004 identity/scoping) is the next product gate.
+
+## 2026-11-24 · Doctor report: kill switch, and a pre-consult audit
+
+- **Why:** Sonic meets his endocrinologist in two days and wants `/report`
+  live only when he is looking at it or showing it in the consult — not a
+  permanent public URL. The old contract was the opposite: `REPORT_TOKEN`
+  unset meant *open*, set meant token-gated but open forever.
+- **Switch shipped (`514b433`, deploy `dep-dc30pami0phs73ek398g`):** two
+  columns on `settings` (`report_access_until`, `report_token`). `/report`
+  now fails closed: 404 unless a window is armed **and** the token matches;
+  404 if no token is configured anywhere. Windows clamp to 7 days and lapse
+  on their own. Arming only through `Api::V1::ReportAccessController`
+  (`X-Report-Admin-Secret`), never through the report link.
+- **Desktop control:** `scripts/a1see-report` (symlinked to
+  `~/.local/bin/a1see-report`) — `on [3h] · off · status · open · url ·
+  rotate`. Reads `RENDER_URL` + `REPORT_ADMIN_SECRET` from `.env.local`.
+- **Backup first:** `~/Backups/a1see/a1c_production_20261124-1612.dump`
+  (custom format, 257 KB, 8 tables) before the migration.
+- **Verified live:** disarmed + correct token → 404; wrong/no token while
+  armed → 404; armed → 200 with "link live until HH:MM" in the header;
+  day detail 200; `off` → 404; arm 1 min → 200, then 404 after 70 s.
+  Tests 94 runs / 308 assertions green; rubocop clean.
+- **Docs:** QA-plan H-01 reworded, H-15 (kill switch) and H-16 (arming)
+  added; README gained the switch section and the access endpoints.
+- **Audit findings, not yet fixed** (Sonic is reviewing the page before
+  deciding): the A1C chart has **zero lab points** — `settings.last_a1c` is
+  6.8 but `a1c_entries` is empty, because the upsert only fires when
+  `last_a1c` *changes* after the deploy; nutrition is 4 entries in 30 days
+  (all Zepp, all 2026-11-16) so carbs/kcal read `0` on 13 of 14 days; day
+  detail is not chronological (doses, then meals, then workouts); charts are
+  illegible at 390 px because the 720-wide SVG scales down; the 14-day table
+  splits across the print page break; `favicon.ico` 404s. Nov 12 and Nov 20
+  show no doses at all — a logging gap, not a report bug.
 
 ## 2026-11-12 · CGM pipeline: xDrip freeze diagnosed
 

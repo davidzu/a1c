@@ -97,10 +97,12 @@ shift || true
 
 case "$cmd" in
   on)
-    print_state "$(call PATCH "$(jq -n --argjson m "$(to_minutes "${1:-3h}")" '{minutes: $m}')")"
+    json=$(call PATCH "$(jq -n --argjson m "$(to_minutes "${1:-3h}")" '{minutes: $m}')")
+    print_state "$json"
     ;;
   off)
-    print_state "$(call PATCH '{"enabled": false}')"
+    json=$(call PATCH '{"enabled": false}')
+    print_state "$json"
     ;;
   open)
     json=$(call PATCH "$(jq -n --argjson m "$(to_minutes "${1:-3h}")" '{minutes: $m}')")
@@ -109,7 +111,8 @@ case "$cmd" in
     [[ -n "$url" ]] && xdg-open "$url" >/dev/null 2>&1 &
     ;;
   status)
-    print_state "$(call GET)"
+    json=$(call GET)
+    print_state "$json"
     ;;
   url)
     json=$(call GET)
@@ -117,7 +120,8 @@ case "$cmd" in
     jq -r '.url' <<<"$json"
     ;;
   rotate)
-    print_state "$(call POST)"
+    json=$(call POST)
+    print_state "$json"
     printf 'any link shared before now is dead; the new one is above.\n'
     ;;
   *)

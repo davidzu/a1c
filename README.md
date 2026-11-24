@@ -55,7 +55,31 @@ v2 ADRs: `glucose_readings` (Nightscout ingest), `activity_sessions`,
 | POST | `/api/v1/nutrition` | Food-entry ingest (single or array, idempotent `client_id`) |
 | GET | `/api/v1/nutrition?hours=N` | Food entries ascending (default 24 h, max 336) |
 | GET | `/api/v1/days?days=N` | Unified per-day totals: insulin fast/slow/total · carbs g · kcal · exercise min (default 30, max 180) |
-| GET | `/report?days=N` | Printable doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90). `noindex`; add `REPORT_TOKEN` to require `?token=` |
+| GET | `/report?days=N` | Printable doctor dashboard — ADA CGM metrics, AGP profile, day table, A1C history (default 14, max 90). **404s unless armed** with `?token=` (see below) |
+| GET | `/api/v1/report_access` | Report switch state: `armed`, `until`, `minutes_left`, live `url`. Needs `X-Report-Admin-Secret` |
+| PATCH | `/api/v1/report_access` | Arm (`{"minutes": 180}`) or disarm (`{"enabled": false}`) the report. Needs `X-Report-Admin-Secret` |
+| POST | `/api/v1/report_access/rotate` | New report token; links shared earlier stop working |
+
+### The doctor report is off by default
+
+`GET /report` answers **404** unless a window is armed *and* the URL carries
+the current token. Windows lapse on their own, so a forgotten "on" cannot
+leave months of health data readable. Arming is out of band — the report link
+itself can never turn the page on:
+
+```bash
+scripts/a1see-report on 3h    # arm, prints the link
+scripts/a1see-report status   # on/off, until when
+scripts/a1see-report off      # 404 immediately
+scripts/a1see-report open 2h  # arm and open it in the browser
+```
+
+The script reads `RENDER_URL` and `REPORT_ADMIN_SECRET` from `.env.local`
+(override with `A1SEE_ENV_FILE`). On the server, `REPORT_ADMIN_SECRET`
+unset means the switch cannot be armed remotely at all — the report then only
+opens through `rails runner`. `REPORT_TOKEN` remains the bootstrap token;
+`a1see-report rotate` stores a new one in the database so rotation needs no
+deploy.
 
 ## Run locally
 
