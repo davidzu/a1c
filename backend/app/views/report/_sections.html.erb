@@ -7,8 +7,8 @@
   <div class="tir-legend">
     <% if last_a1c %>
       <span class="legend-key"><strong>Last A1C: <%= last_a1c[:value] %>%</strong> · <%= last_a1c[:measured_on] %></span>
+      <span><span class="swatch" style="background:#7c3aed"></span>lab A1C</span>
     <% end %>
-    <span><span class="swatch" style="background:#7c3aed"></span>lab A1C</span>
     <span><span class="swatch" style="background:#a78bfa"></span>GMI trend (from CGM mean)</span>
     <span class="axis-note">Y axis: A1C / GMI in % · GMI = 3.31 + 0.02392 × mean glucose</span>
   </div>

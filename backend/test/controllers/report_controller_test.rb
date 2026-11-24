@@ -142,6 +142,7 @@ class ReportControllerTest < ActionDispatch::IntegrationTest
 
     assert_match "A1C history", response.body
     refute_match "Last A1C:", response.body
+    refute_match ">lab A1C</span>", response.body
   end
 
   test "daily context is the last block on the page" do
