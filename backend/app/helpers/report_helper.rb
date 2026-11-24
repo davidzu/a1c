@@ -102,13 +102,17 @@ module ReportHelper
   # horizontal reference line across the graph. The window starts at the last
   # lab date (so the lab value and the trend share one axis) and runs to the
   # report's end date; with no lab on file it starts at the report window.
-  def self.a1c_svg(history, trend, start_date:, end_date:, width: 720, height: 220)
+  #
+  # Both axes are detailed on purpose: half-point gridlines on y, and x labels
+  # every 2 days / 2 weeks (whichever keeps them readable) instead of just the
+  # two ends, so a 10-week history does not read as three points in time.
+  def self.a1c_svg(history, trend, start_date:, end_date:, width: 720, height: 300)
     return "".html_safe if history.empty? && trend.empty?
 
-    top = 14
-    bottom = 24
-    left = 46 # room for the rotated axis title
-    right = 12
+    top = 18
+    bottom = 34
+    left = 48 # room for the rotated axis title
+    right = 14
 
     t0 = start_date
     t1 = end_date
@@ -118,39 +122,57 @@ module ReportHelper
     end
 
     all = history.map { |h| h[:value] } + points.map { |t| t[:gmi] }
-    lo = [ (all.min - 0.5), 4.0 ].max.floor
-    hi = (all.max + 0.5).ceil
+    lo = [ (all.min * 2).floor / 2.0 - 0.5, 4.0 ].max
+    hi = (all.max * 2).ceil / 2.0 + 0.5
     y = y_scale(height, top, bottom, lo, hi)
     span = [ (t1 - t0).to_i, 1 ].max
     x = ->(d) { left + (d - t0).fdiv(span) * (width - left - right) }
 
     svg = +"<svg viewBox=\"0 0 #{width} #{height}\" xmlns=\"http://www.w3.org/2000/svg\" role=\"img\" aria-label=\"A1C history with GMI trend\">"
 
-    # y grid: one line per percentage point, labelled
-    (lo..hi).each do |value|
+    # y grid every half point, labelled at each one
+    steps = ((hi - lo) / 0.5).round
+    (0..steps).each do |i|
+      value = (lo + i * 0.5).round(1)
       yy = y.call(value).round(1)
-      svg << %(<line x1="#{left}" y1="#{yy}" x2="#{width - right}" y2="#{yy}" stroke="#ececec" stroke-width="1"/>)
-      svg << %(<text x="#{left - 4}" y="#{yy + 3}" font-size="9" fill="#999" text-anchor="end">#{value}</text>)
+      svg << %(<line x1="#{left}" y1="#{yy}" x2="#{width - right}" y2="#{yy}" stroke="#eee" stroke-width="1"/>)
+      label = (value % 1).zero? ? value.to_i : format("%.1f", value)
+      svg << %(<text x="#{left - 5}" y="#{yy + 3}" font-size="8" fill="#999" text-anchor="end">#{label}</text>)
     end
 
-    # GMI trend from the daily CGM mean
+    # x grid + labels: pick a step that yields at most ~8 labels, then compact
+    # the date so they fit side by side.
+    step = [ 2, 7, 14, 21, 28 ].find { |s| span.fdiv(s) <= 8 } || 28
+    tick_dates = (0..(span / step)).map { |i| t0 + i * step }
+    tick_dates << t1 if (t1 - tick_dates.last) > (step / 2)
+
+    tick_dates.each_with_index do |date, i|
+      xx = x.call(date).round(1)
+      svg << %(<line x1="#{xx}" y1="#{top}" x2="#{xx}" y2="#{height - bottom + 4}" stroke="#f2f2f2" stroke-width="1"/>)
+      anchor = if i.zero? then "start" elsif i == tick_dates.size - 1 then "end" else "middle" end
+      svg << %(<text x="#{xx}" y="#{height - 12}" font-size="9" fill="#999" text-anchor="#{anchor}">#{date.strftime("%b %-d")}</text>)
+    end
+
+    # GMI trend: dashed line plus a dot per day, so the density is visible
     coords = points.map { |t| "#{x.call(Date.parse(t[:date])).round(1)},#{y.call(t[:gmi]).round(1)}" }
     svg << %(<polyline points="#{coords.join(" ")}" fill="none" stroke="#a78bfa" stroke-width="1.4" stroke-dasharray="3 2"/>) if coords.size > 1
+    points.each do |t|
+      svg << %(<circle cx="#{x.call(Date.parse(t[:date])).round(1)}" cy="#{y.call(t[:gmi]).round(1)}" r="1.6" fill="#a78bfa" opacity="0.85"/>)
+    end
 
-    # lab A1C as a line along the graph, labelled at the right edge
+    # lab A1C: a line along the graph, a faint vertical mark on its date, and
+    # the value labelled at the right edge
     history.each do |h|
       value = h[:value]
       yy = y.call(value).round(1)
+      lab_x = x.call(Date.parse(h[:measured_on])).round(1)
+      svg << %(<line x1="#{lab_x}" y1="#{top}" x2="#{lab_x}" y2="#{height - bottom + 4}" stroke="#7c3aed" stroke-width="1" opacity="0.18"/>)
       svg << %(<line x1="#{left}" y1="#{yy}" x2="#{width - right}" y2="#{yy}" stroke="#7c3aed" stroke-width="1.6" stroke-dasharray="7 3"/>)
-      svg << %(<text x="#{width - right - 2}" y="#{yy - 4}" font-size="9" fill="#7c3aed" text-anchor="end">lab #{value}%</text>)
+      svg << %(<text x="#{width - right - 2}" y="#{yy - 5}" font-size="9" fill="#7c3aed" text-anchor="end">lab #{value}%</text>)
     end
 
-    # y axis title + explanation, rotated along the left edge
-    svg << %(<text transform="translate(11, #{height / 2}) rotate(-90)" font-size="9" fill="#6b6b6b" text-anchor="middle">A1C / GMI (%)</text>)
-
-    # x axis ends
-    svg << %(<text x="#{left}" y="#{height - 8}" font-size="9" fill="#999">#{t0}</text>)
-    svg << %(<text x="#{width - right}" y="#{height - 8}" font-size="9" fill="#999" text-anchor="end">#{t1}</text>)
+    # y axis title
+    svg << %(<text transform="translate(12, #{height / 2}) rotate(-90)" font-size="10" fill="#6b6b6b" text-anchor="middle">A1C / GMI (%)</text>)
     svg << "</svg>"
     svg.html_safe
   end
