@@ -61,10 +61,23 @@
   a mislabelled carrier network). Diagnostics live in `GET /api/v1/report_access`
   (`allowed_countries`, `your_country`).
 - **Operational gotcha:** env var changes on Render only apply after a
-  **deploy** — `/restart` came back with the old values. Cost 10 minutes today.
-- **Known exposure (pre-slice-8):** `/api/v1/*` has no auth — `GET
-  /api/v1/glucose`, `/doses`, `/settings` return the same data the dashboard
-  shows. The switch and country filter protect the page, not the API.
+  **deploy** — `/restart` came back with the old values. Also, for ~20 s after
+  a deploy reports `live`, requests can still be served by the old container,
+  so verify a blocking change with a cache-busting query param and a second
+  request. Cost 20 minutes today.
+- **API gate (same day, Sonic asked for it):** every `/api/v1` data route now
+  inherits `Api::V1::BaseController` and applies `API_ALLOWED_COUNTRIES=MX`
+  against the same edge header. Blocked requests get the 404 envelope; the
+  admin switch stays ungated so it is reachable from anywhere. Verified live
+  with the allowlist flipped to `US`: all read and write routes 404 while
+  `/api/v1/report_access` and `/doctor-dashboard` stayed 200; after restoring
+  `MX`, a fresh CGM reading arrived within one upload cycle (23:06:33Z), so
+  the phone pipeline is unaffected.
+- **Cache note:** Cloudflare does not cache either surface — the API answers
+  `cache-control: no-cache`, the report `max-age=0, private, must-revalidate`,
+  both `cf-cache-status: DYNAMIC`. No PHI sits in a shared edge cache.
+- **Still open (pre-slice-8):** there is no per-user auth. The country gate is
+  a net, not a lock: anyone in Mexico still reads `/api/v1/*`.
 - **Docs:** QA-plan H-01 reworded, H-15 (kill switch), H-16 (arming), H-17
   (permanent path) and H-18 (country filter) added; README gained the switch
   section, the country filter and the access endpoints.

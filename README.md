@@ -97,6 +97,24 @@ the page from any country, which is the escape hatch if a carrier mislabels
 your own network. The filter only matters while armed — disarmed, everything
 is 404 anyway.
 
+### The API is gated the same way (interim)
+
+Until slice 8 (ADR-004 identity) there is no per-user auth, so every `/api/v1`
+data route would otherwise answer anyone who finds the host. They all inherit
+`Api::V1::BaseController`:
+
+```
+API_ALLOWED_COUNTRIES=MX
+```
+
+Blocked requests get the documented 404 envelope, not 403, so a scanner cannot
+tell the routes exist. Unset disables the filter (local dev). The admin switch
+`/api/v1/report_access` is deliberately **not** gated — it must stay reachable
+from anywhere so the report can be disarmed while travelling. Ingest keeps
+working because the phone uploads from a Mexican network; if it ever is not,
+xDrip, Juggluco and the app outbox each keep their own copy and nothing is
+lost.
+
 Changing any env var on Render needs a **deploy**, not just a restart: the
 service comes back with the old values otherwise.
 

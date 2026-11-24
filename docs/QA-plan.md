@@ -362,6 +362,18 @@ RedMagic unless stated.
 | G-06 | Ordering | Ascending by local date |
 | G-07 | Window correctness | Only dates inside the last N local days (F-01) |
 
+### G2. API access (interim gate, pre-slice-8)
+
+| ID | Case | Expected |
+|---|---|---|
+| G2-01 | Every v1 data route inherits the gate | `GET/POST` on doses, settings, entries, glucose, activities, nutrition, days all answer 404 for a non-allowed country |
+| G2-02 | Allowed country | `CF-IPCountry: MX` with `API_ALLOWED_COUNTRIES=MX` → normal response |
+| G2-03 | Missing label | No `CF-IPCountry` while the filter is on → 404 |
+| G2-04 | Envelope | Blocked reads and writes return the documented `{error:{code:"not_found"}}`, never 401/403 |
+| G2-05 | Filter off | `API_ALLOWED_COUNTRIES` unset → no filtering (local dev) |
+| G2-06 | Admin switch stays reachable | `/api/v1/report_access` is **not** gated, so the report can be disarmed from any country |
+| G2-07 | Ingest survives | With the gate on from MX, a new CGM reading still arrives within one upload cycle |
+
 ### H. Doctor report
 
 | ID | Case | Expected |
